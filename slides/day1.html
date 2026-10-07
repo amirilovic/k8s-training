@@ -175,6 +175,25 @@ docker ps -a</pre>
 </section>
 
 <section class="slide" data-time="09:45" data-kind="talk">
+  <h2>Kubernetes is a container orchestration platform</h2>
+  <p class="lead">It runs containerized services across a group of machines and keeps them running the way you described them.</p>
+  <div class="cols">
+    <ul class="points">
+      <li>One way to deploy every service, on a laptop, in AWS or in Azure.</li>
+      <li>High availability: failed containers restart, and copies spread over several machines.</li>
+      <li>Scaling up and down, by hand or automatically with load.</li>
+    </ul>
+    <ul class="points">
+      <li>Releases without downtime, and rollback.</li>
+      <li>Service discovery and load balancing between copies.</li>
+      <li>Configuration and secrets kept outside the image.</li>
+    </ul>
+  </div>
+  <p class="small">Open source since 2014, based on Google's internal system Borg. Maintained by the Cloud Native Computing Foundation. The name is Greek for helmsman; "k8s" counts the 8 letters between k and s.</p>
+  <aside class="notes"><ul><li>Tie it back to the Docker slide: every bullet here answers one item from the "Docker doesn't give us" column.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
   <h2>You describe the result, controllers do the work</h2>
   <div class="diagram">
     <div class="box accent">desired state<small>replicas: 3</small></div>
