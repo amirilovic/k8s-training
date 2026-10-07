@@ -49,6 +49,7 @@ kubectl apply -f solutions/03-services/
 | `labs/` | One folder per lab with instructions |
 | `solutions/` | The end state of each lab |
 | `capstone/` | Capstone task and `check.sh` |
+| `slides/` | One HTML deck per day, open `slides/index.html`. Keys: arrows, N notes, O overview, T theme, F fullscreen |
 
 ## Ports on your machine
 

@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kubernetes Day 2</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body data-day="Day 2 · Tuesday">
+<div class="viewport"><div class="stage">
+
+<section class="slide cover">
+  <div class="meta">Kubernetes for .NET developers · Day 2 of 3 · Tuesday 13 October</div>
+  <h1>Services, config<br>and health</h1>
+  <p class="lead">How traffic finds your pods, how the app gets its configuration, and how Kubernetes knows it is healthy.</p>
+</section>
+
+<section class="slide" data-time="09:00">
+  <h2>Today</h2>
+  <table class="kubectl">
+    <tr><th>Time</th><th>Name</th><th>Type</th><th>Duration</th></tr>
+    <tr><td>09:00</td><td>Recap, recreate yesterday's Deployment</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>09:20</td><td>Services and DNS</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>09:40</td><td>Lab 3: Services</td><td class="t-lab">lab</td><td>40m</td></tr>
+    <tr><td>10:20</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
+    <tr><td>10:35</td><td>Configuration</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>10:55</td><td>Lab 4: ConfigMaps and Secrets</td><td class="t-lab">lab</td><td>45m</td></tr>
+    <tr><td>11:40</td><td>Break</td><td class="t-break">break</td><td>10m</td></tr>
+    <tr><td>11:50</td><td>Probes and resources</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>12:10</td><td>Lab 5: Probes and limits</td><td class="t-lab">lab</td><td>40m</td></tr>
+    <tr><td>12:50</td><td>Recap and questions</td><td class="t-talk">talk</td><td>10m</td></tr>
+  </table>
+</section>
+
+<section class="slide" data-time="09:00">
+  <h2>Yesterday in four questions</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>You delete a pod of a Deployment. What happens, and which object makes it happen?</li>
+      <li>What is the difference between a ReplicaSet and a Deployment?</li>
+      <li>Why did the rollout to <code>v2</code> drop requests?</li>
+      <li>Where does <code>rollout undo</code> take you after v1, v2, v3-broken?</li>
+    </ul>
+    <pre class="term"><span class="c"># back to where Lab 2 ended</span>
+kubectl apply -f solutions/02-deployments/
+kubectl get deployment,pods</pre>
+  </div>
+  <aside class="notes"><ul><li>Answers: the ReplicaSet controller creates a replacement; the ReplicaSet keeps a count, the Deployment manages versions; no readiness probe so a starting pod got traffic; undo goes to v2, the previous revision.</li><li>Anyone whose cluster is gone: kind delete cluster --name training, setup/create-cluster.sh, then the apply above.</li></ul></aside>
+</section>
+
+<section class="slide section" data-time="09:20" data-kind="talk">
+  <div class="eyebrow">20 minutes · talk</div>
+  <h2>Services and DNS</h2>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>Pods come and go. Their IPs too.</h2>
+  <div class="cols">
+    <pre class="term">kubectl get pods -o wide
+
+<span class="c">NAME              IP            NODE</span>
+web-848b…-cg4bh   10.244.1.7    training-worker
+web-848b…-8cmwj   10.244.2.4    training-worker2
+web-848b…-b54cp   10.244.1.9    training-worker
+
+kubectl delete pod web-848b…-cg4bh
+<span class="c">web-848b…-q2lzx   </span><span class="warn">10.244.2.11</span><span class="c">   training-worker2</span></pre>
+    <ul class="points">
+      <li>Every pod gets its own IP, and a new one when it is replaced.</li>
+      <li>Hard-coding pod IPs breaks on the next rollout.</li>
+      <li>A Service gives a group of pods one name and one IP that never change.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>A Service finds pods by label</h2>
+  <div class="diagram">
+    <div class="box accent">Service web<small>10.96.198.9 · port 80</small></div>
+    <div class="arrow">→</div>
+    <div class="box">EndpointSlice<small>ready pods only</small></div>
+    <div class="arrow">→</div>
+    <div class="diagram col">
+      <div class="box ok">10.244.1.7:8080<small>app=web · ready</small></div>
+      <div class="box ok">10.244.2.4:8080<small>app=web · ready</small></div>
+      <div class="box ghost">10.244.1.9:8080<small>app=web · not ready</small></div>
+    </div>
+  </div>
+  <ul class="points">
+    <li>The selector <code>app: web</code> must match the pod labels exactly. A typo gives a Service with no endpoints and no error.</li>
+    <li>Only ready pods receive traffic. That is how readiness probes, later today, keep traffic away from a starting pod.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>Service types</h2>
+  <table>
+    <tr><th>Type</th><th>Reachable from</th><th>Used for</th></tr>
+    <tr><td><code>ClusterIP</code></td><td>inside the cluster only</td><td>almost every Service; the default</td></tr>
+    <tr><td><code>NodePort</code></td><td>every node, on a port 30000–32767</td><td>labs, and as the plumbing under ingress controllers</td></tr>
+    <tr><td><code>LoadBalancer</code></td><td>a cloud load balancer in front of the nodes</td><td>ingress controllers in the cloud</td></tr>
+  </table>
+  <p class="small">In real clusters, apps use ClusterIP and outside traffic comes in through an Ingress (Wednesday). NodePort is today's shortcut to your browser.</p>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>From your browser to a pod</h2>
+  <div class="diagram">
+    <div class="box">Windows browser<small>localhost:30080</small></div>
+    <div class="arrow">→</div>
+    <div class="box">kind node container<small>port 30080, from kind.yaml</small></div>
+    <div class="arrow">→</div>
+    <div class="box accent">Service web<small>nodePort 30080 · port 80</small></div>
+    <div class="arrow">→</div>
+    <div class="box ok">pod<small>targetPort 8080</small></div>
+  </div>
+  <div class="cols">
+    <pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: Service
+<span class="k">metadata</span>:
+  name: web
+<span class="k">spec</span>:
+  type: NodePort
+  selector:
+    app: web
+  ports:
+    - port: 80          <span class="c"># http://web</span>
+      targetPort: 8080  <span class="c"># the container</span>
+      nodePort: 30080   <span class="c"># the node</span></pre>
+    <ul class="points">
+      <li>Three port numbers, three different things. Most Service bugs are one of them.</li>
+      <li><code>targetPort: 80</code> on a .NET 8 app gives "connection refused".</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>Cluster DNS</h2>
+  <div class="cols">
+    <table>
+      <tr><th>From a pod in</th><th>Name that works</th></tr>
+      <tr><td>the same namespace</td><td><code>http://web</code></td></tr>
+      <tr><td>another namespace</td><td><code>http://web.training</code></td></tr>
+      <tr><td>anywhere, fully</td><td><code>web.training.svc.cluster.local</code></td></tr>
+    </table>
+    <ul class="points">
+      <li>In <code>appsettings.json</code> a dependency is just <code>http://orders</code>, and the same file works in every namespace.</li>
+      <li>A Service balances connections, not requests. A browser keeps its connection open and often stays on one pod.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>The connection point matters for .NET: HttpClient pools connections, so one client instance can stick to one pod for a long time. SocketsHttpHandler.PooledConnectionLifetime helps spread load.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="09:40" data-kind="lab">
+  <div class="eyebrow">Lab 3 · 40 minutes</div>
+  <h2>Services</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Build a ClusterIP Service and call it by name from a throwaway pod.</li>
+      <li>Break the selector and watch the endpoints disappear.</li>
+      <li>Change it to NodePort 30080 and open it in the Windows browser.</li>
+      <li>Watch the pod name change with a curl loop.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/03-services/README.md</div>
+      <p class="small">Starts by deleting the ready-made Service from Lab 2.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide break" data-time="10:20" data-kind="break">
+  <h2>Break</h2>
+  <p class="lead">Back at 10:35.</p>
+</section>
+
+<section class="slide section" data-time="10:35" data-kind="talk">
+  <div class="eyebrow">20 minutes · talk</div>
+  <h2>Configuration</h2>
+</section>
+
+<section class="slide" data-time="10:35" data-kind="talk">
+  <h2>One image, every environment</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>The same <code>v1</code> image runs in dev and prod. Only configuration differs.</li>
+      <li>Configuration lives in the cluster, next to the Deployment that uses it.</li>
+      <li>Change a setting without building a new image.</li>
+    </ul>
+    <table>
+      <tr><th>Object</th><th>Holds</th></tr>
+      <tr><td><code>ConfigMap</code></td><td>settings, whole files like <code>appsettings.json</code></td></tr>
+      <tr><td><code>Secret</code></td><td>passwords, keys, connection strings</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="slide" data-time="10:35" data-kind="talk">
+  <h2>How it reaches .NET configuration</h2>
+  <div class="cols wide-right">
+    <div class="diagram col">
+      <div class="box accent">command-line args<small>highest priority</small></div>
+      <div class="box accent">environment variables<small>env: Greeting__Text</small></div>
+      <div class="box">/secrets/Secrets__ApiKey<small>Secret mounted as files, AddKeyPerFile</small></div>
+      <div class="box">/config/appsettings.json<small>ConfigMap mounted as a file</small></div>
+      <div class="box ghost">appsettings.json in the image<small>lowest priority</small></div>
+    </div>
+    <ul class="points">
+      <li>Later providers win. That is why an env var beats the mounted file.</li>
+      <li><code>__</code> in a name becomes <code>:</code>. <code>Greeting__Text</code> is <code>Greeting:Text</code>.</li>
+      <li>Your code reads <code>IConfiguration</code> as always. It does not know about Kubernetes.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>This is the training app's actual provider order, see app/Program.cs. In a default ASP.NET Core app you add the /config and /secrets providers yourself.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="10:35" data-kind="talk">
+  <h2>Mounting a ConfigMap and a Secret</h2>
+  <div class="cols wide-left">
+    <pre>    spec:
+      containers:
+        - name: web
+          env:
+            - name: Greeting__Text
+              value: "Hello from an env var"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: secrets
+              mountPath: /secrets
+      volumes:
+        - name: config
+          configMap:
+            name: web-config
+        - name: secrets
+          secret:
+            secretName: web-secrets</pre>
+    <ul class="points">
+      <li>Each key in the ConfigMap or Secret becomes one file in the folder.</li>
+      <li>Env vars are fixed when the container starts.</li>
+      <li>Mounted files are updated in place, within about a minute. The app still has to reload them.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="10:35" data-kind="talk">
+  <h2>Two things that surprise .NET developers</h2>
+  <div class="cols">
+    <div class="stack">
+      <h3>reloadOnChange misses updates</h3>
+      <p>Kubernetes swaps a symlink instead of writing the file. <code>FileSystemWatcher</code> never fires. In the lab the file changes and the app keeps the old value.</p>
+      <p class="small">Fix: <code>DOTNET_USE_POLLING_FILE_WATCHER=true</code>, or restart the pods.</p>
+    </div>
+    <div class="stack">
+      <h3>Secrets are not encrypted</h3>
+      <p>Values are base64. <code>kubectl get secret -o yaml</code> plus <code>base64 -d</code> shows them to anyone allowed to read Secrets.</p>
+      <p class="small">In production they come from a secret store (Vault, AWS Secrets Manager) and access is limited with RBAC.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide lab" data-time="10:55" data-kind="lab">
+  <div class="eyebrow">Lab 4 · 45 minutes</div>
+  <h2>ConfigMaps and Secrets</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Set the greeting with an env var, then from a mounted <code>appsettings.json</code>.</li>
+      <li>See which one wins, and why.</li>
+      <li>Mount an API key from a Secret at <code>/secrets</code>.</li>
+      <li>Edit the ConfigMap. The file changes, the app does not notice.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/04-config/README.md</div>
+      <p class="small">Check the result at <code>http://localhost:30080/api/info</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide break" data-time="11:40" data-kind="break">
+  <h2>Break</h2>
+  <p class="lead">Back at 11:50.</p>
+</section>
+
+<section class="slide section" data-time="11:50" data-kind="talk">
+  <div class="eyebrow">20 minutes · talk</div>
+  <h2>Probes and resources</h2>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>Three probes, three different reactions</h2>
+  <table>
+    <tr><th>Probe</th><th>Question</th><th>When it fails</th></tr>
+    <tr><td><code>readinessProbe</code></td><td>Can it take traffic now?</td><td>pod leaves the Service, <strong>no restart</strong></td></tr>
+    <tr><td><code>livenessProbe</code></td><td>Is it stuck for good?</td><td>container is <strong>restarted</strong></td></tr>
+    <tr><td><code>startupProbe</code></td><td>Has it finished starting?</td><td>holds off the other two until it passes</td></tr>
+  </table>
+  <ul class="points">
+    <li>Readiness also gates rollouts: the next old pod goes only when a new one is ready.</li>
+    <li>A wrong liveness probe turns a slow database into a restart loop across every pod.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>.NET health checks map onto probes</h2>
+  <div class="cols wide-left">
+    <pre>builder.Services.AddHealthChecks()
+    .AddCheck("alive", ..., tags: ["live"])
+    .AddCheck&lt;DatabaseHealthCheck&gt;(
+        "database", tags: ["ready"]);
+
+app.MapHealthChecks("/healthz",
+    new() { Predicate = c =&gt; c.Tags.Contains("live") });
+app.MapHealthChecks("/readyz",
+    new() { Predicate = c =&gt; c.Tags.Contains("ready") });</pre>
+    <div class="stack">
+      <pre>livenessProbe:
+  httpGet: { path: /healthz, port: 8080 }
+readinessProbe:
+  httpGet: { path: /readyz, port: 8080 }</pre>
+      <p class="small">The database check is tagged for readiness only. If Postgres goes down, pods stop getting traffic, but nothing restarts.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>The same rollout, with probes</h2>
+  <div class="figure">
+    <div><div class="n bad">9</div><div class="cap">failed of 339 requests, v1 to v2, no probes (Monday)</div></div>
+    <div><div class="n ok">0</div><div class="cap">failed of 366 requests, with a readiness probe and a 5 s preStop pause</div></div>
+  </div>
+  <ul class="points">
+    <li>The readiness probe keeps traffic away until the app listens.</li>
+    <li>The <code>preStop</code> sleep keeps an old pod serving while the Service drops it from its endpoints.</li>
+  </ul>
+  <aside class="notes"><ul><li>Both numbers measured on kind with the training app. The preStop pause covers the gap between the pod being marked for deletion and every node updating its routing.</li><li>Lab 5's extra repeats v3-broken with probes: the rollout stops at one crashing pod and the old pods keep serving.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>Requests and limits</h2>
+  <div class="cols">
+    <pre>resources:
+  requests:          <span class="c"># reserved, used for scheduling</span>
+    cpu: 100m        <span class="c"># 0.1 of a core</span>
+    memory: 128Mi
+  limits:            <span class="c"># hard ceiling</span>
+    cpu: "1"
+    memory: 256Mi</pre>
+    <table>
+      <tr><th>Over the limit</th><th>What happens</th></tr>
+      <tr><td>CPU</td><td>throttled, gets slower</td></tr>
+      <tr><td>memory</td><td>killed: <span class="pill bad">OOMKilled</span> exit 137</td></tr>
+      <tr><td>request too big for any node</td><td><span class="pill warn">Pending</span> forever</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>.NET reads the limits</h2>
+  <div class="cols">
+    <table>
+      <tr><th>Container setting</th><th>.NET sees</th></tr>
+      <tr><td>CPU limit 1</td><td><code>Environment.ProcessorCount</code> = 1</td></tr>
+      <tr><td>memory limit 128Mi</td><td>GC heap limit 96 MB (75%)</td></tr>
+    </table>
+    <div class="stack">
+      <p><code>/admin/leak?managed=true</code> fills <code>byte[]</code> until .NET throws <code>OutOfMemoryException</code>. The container survives.</p>
+      <p><code>/admin/leak</code> fills native memory, which the GC does not limit. Linux kills the container: <span class="pill bad">OOMKilled</span></p>
+      <p class="small">Thread pool and Server GC size themselves from ProcessorCount, so a CPU limit changes how your app behaves under load.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Numbers from /api/info on kind with a 128Mi limit and a CPU limit of 1.</li><li>Native leaks in real apps: unmanaged libraries, image processing, large pinned buffers.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:50" data-kind="talk">
+  <h2>Pod states you will meet</h2>
+  <table>
+    <tr><th>Status</th><th>Usually means</th><th>Look at</th></tr>
+    <tr><td><span class="pill warn">Pending</span></td><td>no node fits the requests</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">ImagePullBackOff</span></td><td>wrong image name or tag</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">CreateContainerConfigError</span></td><td>missing ConfigMap or Secret key</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">CrashLoopBackOff</span></td><td>the app exits on start</td><td><code>logs --previous</code></td></tr>
+    <tr><td><span class="pill bad">OOMKilled</span></td><td>over the memory limit</td><td><code>describe</code>, Last State</td></tr>
+    <tr><td><span class="pill">Running 0/1</span></td><td>readiness probe failing</td><td><code>describe</code> events, the probe path</td></tr>
+  </table>
+  <aside class="notes"><ul><li>Tomorrow's Lab 7 is built from exactly these. Photographing this slide is allowed.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="12:10" data-kind="lab">
+  <div class="eyebrow">Lab 5 · 40 minutes</div>
+  <h2>Probes and limits</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Add readiness and liveness probes.</li>
+      <li><code>/admin/unready</code>: the pod leaves the Service but keeps running.</li>
+      <li><code>/admin/hang</code>: the liveness probe restarts it.</li>
+      <li>Repeat Monday's rollout. Count the failures again.</li>
+      <li>Set a 128Mi limit and hit <code>/admin/leak</code>.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/05-probes-limits/README.md</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-time="12:50">
+  <h2>What you can do now</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Give pods a stable name and reach them from the browser.</li>
+      <li>Configure the app from ConfigMaps and Secrets without rebuilding it.</li>
+      <li>Release without dropping requests.</li>
+      <li>Read OOMKilled, Pending and CrashLoopBackOff.</li>
+    </ul>
+    <div class="stack">
+      <h3>Tomorrow, 09:00 to 15:00</h3>
+      <p>Postgres and storage, a debugging lab, autoscaling, Helm, Ingress, and a capstone in pairs.</p>
+      <p class="small">Bring lunch plans: tomorrow is the long day, with a 30-minute lunch at 11:55.</p>
+    </div>
+  </div>
+</section>
+
+</div></div>
+<script src="deck.js"></script>
+</body>
+</html>

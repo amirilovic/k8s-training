@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kubernetes Day 1</title>
+<link rel="stylesheet" href="deck.css">
+</head>
+<body data-day="Day 1 · Monday">
+<div class="viewport"><div class="stage">
+
+<section class="slide cover">
+  <div class="meta">Kubernetes for .NET developers · Day 1 of 3 · Monday 12 October</div>
+  <h1>From container<br>to Deployment</h1>
+  <p class="lead">Docker refresher, what Kubernetes adds, Pods, namespaces, Deployments, rolling updates and rollback.</p>
+  <aside class="notes"><ul><li>Welcome. While people settle, ask everyone to open Ubuntu 26.04 and cd into ~/k8s-training.</li><li>Press N to hide these notes before presenting on the projector.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:00">
+  <h2>Today</h2>
+  <table class="kubectl">
+    <tr><th>Time</th><th>Name</th><th>Type</th><th>Duration</th></tr>
+    <tr><td>09:00</td><td>Intro and cluster up</td><td class="t-talk">setup</td><td>20m</td></tr>
+    <tr><td>09:20</td><td>Docker refresher</td><td class="t-talk">talk + demo</td><td>25m</td></tr>
+    <tr><td>09:45</td><td>What Kubernetes is</td><td class="t-talk">talk + demo</td><td>40m</td></tr>
+    <tr><td>10:25</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
+    <tr><td>10:40</td><td>Lab 1: kubectl, Pods, namespaces</td><td class="t-lab">lab</td><td>50m</td></tr>
+    <tr><td>11:30</td><td>Labels, ReplicaSets, Deployments</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>11:50</td><td>Lab 2: Deployments and rollouts</td><td class="t-lab">lab</td><td>55m</td></tr>
+    <tr><td>12:45</td><td>Recap and questions</td><td class="t-talk">talk</td><td>15m</td></tr>
+  </table>
+</section>
+
+<section class="slide" data-time="09:00" data-kind="setup">
+  <h2>How these three days work</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>About a quarter talk, three quarters hands-on.</li>
+      <li>Every lab is a README in <code>labs/</code>. It ends with "Check yourself" commands, so you know when you are done.</li>
+      <li>Finished early? Each lab has extras. Do those instead of waiting.</li>
+      <li>Fell behind? Apply the previous lab's solution and carry on.</li>
+    </ul>
+    <div class="stack">
+      <pre class="term"><span class="c"># catch up to the end of Lab 2</span>
+kubectl apply -f solutions/02-deployments/</pre>
+      <p class="small">Your own YAML goes in <code>~/k8s-training/work/</code>. Git ignores that folder.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-time="09:00" data-kind="setup">
+  <h2>Everyone's cluster up</h2>
+  <div class="cols wide-left">
+    <pre class="term">cd ~/k8s-training
+git pull
+setup/create-cluster.sh
+kubectl get nodes
+
+<span class="c">NAME                     STATUS   ROLES           VERSION</span>
+training-control-plane   <span class="ok">Ready</span>    control-plane   v1.37.0
+training-worker          <span class="ok">Ready</span>    &lt;none&gt;          v1.37.0
+training-worker2         <span class="ok">Ready</span>    &lt;none&gt;          v1.37.0</pre>
+    <ul class="points">
+      <li>Three nodes, each one a Docker container on your laptop.</li>
+      <li>Takes about a minute: the node image is cached from the preflight.</li>
+      <li>Hand up if you see anything other than three <code>Ready</code> nodes.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Walk the room. Common failures: Docker not running (sudo systemctl start docker), a leftover cluster from preflight (kind delete cluster --name preflight), ports 30080/30081 taken by Docker Desktop.</li><li>Don't start the talk until all 8 have three Ready nodes.</li></ul></aside>
+</section>
+
+<section class="slide section" data-time="09:20" data-kind="talk">
+  <div class="eyebrow">25 minutes · talk and demo</div>
+  <h2>Docker refresher</h2>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>Image and container</h2>
+  <div class="cols">
+    <div class="diagram col">
+      <div class="box ghost">writable layer<small>container only, gone on delete</small></div>
+      <div class="box accent">app files<small>COPY --from=build /out .</small></div>
+      <div class="box">ASP.NET Core runtime<small>mcr.microsoft.com/dotnet/aspnet:10.0</small></div>
+      <div class="box">Debian base<small>OS files, no kernel</small></div>
+    </div>
+    <ul class="points">
+      <li>An image is read-only layers plus metadata: entrypoint, ports, user.</li>
+      <li>A container is a process started from an image, with one thin writable layer on top.</li>
+      <li>A tag (<code>:v1</code>) is a movable name. The digest (<code>sha256:…</code>) never changes.</li>
+      <li>A registry stores images. Ours is <code>ghcr.io/amirilovic/k8s-training-app</code>.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Point out the writable layer: anything the app writes to disk is lost when the container is removed. That comes back on Wednesday with Postgres.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="talk">
+  <h2>The training app's Dockerfile</h2>
+  <div class="cols wide-left">
+    <pre><span class="c"># build stage: SDK image compiles the app</span>
+<span class="k">FROM</span> mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+COPY TrainingApp.csproj .
+RUN dotnet restore
+COPY . .
+RUN dotnet publish -c Release -o /out
+
+<span class="c"># runtime stage: only the runtime and the output</span>
+<span class="k">FROM</span> mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+COPY --from=build /out .
+USER $APP_UID
+ENTRYPOINT ["dotnet", "TrainingApp.dll"]</pre>
+    <ul class="points">
+      <li>Two stages: the SDK never ships.</li>
+      <li>Restore before copying the source, so the package layer is cached.</li>
+      <li>.NET 8 and later images listen on <strong>8080</strong>, not 80.</li>
+      <li><code>USER $APP_UID</code> runs as the non-root <code>app</code> user.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>The real file in app/Dockerfile also handles multi-architecture builds (TARGETARCH) and bakes the version in. Simplified here.</li><li>Port 8080 is the first bug people hit when they copy an old manifest with port 80.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:20" data-kind="demo">
+  <h2>Demo: the app in plain Docker</h2>
+  <div class="cols wide-left">
+    <pre class="term">docker run -d --name web -p 8080:8080 \
+  -e Greeting__Text="Hello from Docker" \
+  ghcr.io/amirilovic/k8s-training-app:v1
+
+curl localhost:8080/
+<span class="ok">Hello from Docker | version: v1 | pod: 3f2a…</span>
+
+docker logs web
+docker exec -it web ls /app
+docker kill web
+docker ps -a</pre>
+    <div class="stack">
+      <p><code>-p</code> publishes a port, <code>-e</code> sets an environment variable. <code>Greeting__Text</code> becomes <code>Greeting:Text</code> in .NET configuration.</p>
+      <p class="lead">The container is dead. Who starts it again in production?</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Run it live. The image has no curl inside, so call it from WSL.</li><li>After docker kill, let the question hang. Collect answers: systemd, docker restart policy, a person. Then: and if the machine dies?</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:40" data-kind="talk">
+  <h2>What Docker gives us, and what it doesn't</h2>
+  <div class="cols">
+    <div class="stack">
+      <h3>Docker gives us</h3>
+      <ul class="points">
+        <li>One package with the app, the runtime and the OS files.</li>
+        <li>The same image on a laptop, in CI and in production.</li>
+        <li>Isolation: own filesystem, own processes, own ports.</li>
+        <li>A registry to store versions and pull them anywhere.</li>
+        <li>Fast start, in seconds instead of a VM's minutes.</li>
+      </ul>
+    </div>
+    <div class="stack">
+      <h3>Docker doesn't give us</h3>
+      <ul class="points">
+        <li>A restart on another machine when this one dies.</li>
+        <li>Several copies behind one address.</li>
+        <li>Releases without downtime, and rollback.</li>
+        <li>Configuration per environment, outside the image.</li>
+        <li>More copies when load goes up.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small">The right column is what Kubernetes adds, and it is the map of the three days: Deployments today, Services and config tomorrow, autoscaling on Wednesday.</p>
+  <aside class="notes"><ul><li>Ask the room for the left column first, then the right. Docker's restart policy exists, but only on the same machine.</li></ul></aside>
+</section>
+
+<section class="slide section" data-time="09:45" data-kind="talk">
+  <div class="eyebrow">40 minutes · talk and demo</div>
+  <h2>What Kubernetes is</h2>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>You describe the result, controllers do the work</h2>
+  <div class="diagram">
+    <div class="box accent">desired state<small>replicas: 3</small></div>
+    <div class="arrow">→</div>
+    <div class="box">controller compares<small>wants 3, sees 2</small></div>
+    <div class="arrow">→</div>
+    <div class="box">acts<small>creates 1 pod</small></div>
+    <div class="arrow">→</div>
+    <div class="box">actual state<small>3 running</small></div>
+    <div class="arrow">↺</div>
+  </div>
+  <ul class="points">
+    <li>You never say "start a container". You say "there should be 3", and a loop keeps it true.</li>
+    <li>The loop runs forever. A pod that dies at 3 a.m. is replaced the same way as one you delete now.</li>
+    <li>Every kind of object (Deployment, Service, Job) has its own controller.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>Inside the cluster</h2>
+  <div class="diagram">
+    <div class="zone" style="flex: 1">
+      <span class="label">control plane · training-control-plane</span>
+      <div class="box accent">API server<small>the only entry point</small></div>
+      <div class="box">etcd<small>stores every object</small></div>
+      <div class="box">scheduler<small>picks a node</small></div>
+      <div class="box">controller manager<small>runs the loops</small></div>
+    </div>
+  </div>
+  <div class="diagram">
+    <div class="zone" style="flex: 1">
+      <span class="label">node · training-worker</span>
+      <div class="box">kubelet<small>starts pods</small></div>
+      <div class="box">containerd</div>
+      <div class="box ok">pod</div><div class="box ok">pod</div>
+    </div>
+    <div class="zone" style="flex: 1">
+      <span class="label">node · training-worker2</span>
+      <div class="box">kubelet<small>starts pods</small></div>
+      <div class="box">containerd</div>
+      <div class="box ok">pod</div>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>kubectl only ever talks to the API server. Nothing talks to etcd directly.</li><li>The kubelet on each node watches the API server for pods assigned to its node and starts them.</li><li>In Lab 1 they find these components as pods in kube-system.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>What happens on <code>kubectl apply</code></h2>
+  <div class="diagram">
+    <div class="box accent">kubectl<small>sends YAML</small></div>
+    <div class="arrow">→</div>
+    <div class="box">API server<small>validates, stores</small></div>
+    <div class="arrow">→</div>
+    <div class="box">scheduler<small>assigns a node</small></div>
+    <div class="arrow">→</div>
+    <div class="box">kubelet<small>pulls image, starts</small></div>
+    <div class="arrow">→</div>
+    <div class="box ok">Running</div>
+  </div>
+  <ul class="points">
+    <li><code>apply</code> returns as soon as the object is stored. The pod starts afterwards.</li>
+    <li>Each step writes back to the object's <code>status</code>. That is what <code>kubectl get</code> and <code>describe</code> show you.</li>
+    <li>When something hangs, the last step that succeeded tells you where to look.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>Every object has the same shape</h2>
+  <div class="cols wide-left">
+    <pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: Pod
+<span class="k">metadata</span>:
+  name: web
+  namespace: training
+  labels:
+    app: web
+<span class="k">spec</span>:                    <span class="c"># what you want</span>
+  containers:
+    - name: web
+      image: ghcr.io/amirilovic/k8s-training-app:v1
+      ports:
+        - containerPort: 8080
+<span class="k">status</span>:                  <span class="c"># what is, written by Kubernetes</span>
+  phase: Running</pre>
+    <ul class="points">
+      <li>You write <code>spec</code>. Kubernetes writes <code>status</code>.</li>
+      <li>Never write YAML from memory: <code>--dry-run=client -o yaml</code> generates it.</li>
+      <li><code>kubectl explain pod.spec.containers</code> documents every field.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>From docker to kubectl</h2>
+  <table>
+    <tr><th>Docker</th><th>kubectl</th></tr>
+    <tr><td><code>docker run -d --name web image</code></td><td><code>kubectl run web --image=image</code></td></tr>
+    <tr><td><code>docker ps</code></td><td><code>kubectl get pods</code></td></tr>
+    <tr><td><code>docker inspect web</code></td><td><code>kubectl describe pod web</code></td></tr>
+    <tr><td><code>docker logs web</code></td><td><code>kubectl logs web</code></td></tr>
+    <tr><td><code>docker exec -it web sh</code></td><td><code>kubectl exec -it web -- sh</code></td></tr>
+    <tr><td><code>-p 8080:8080</code></td><td><code>kubectl port-forward pod/web 8080:8080</code></td></tr>
+    <tr><td><code>-e KEY=value</code></td><td><code>env:</code> in the pod spec</td></tr>
+    <tr><td><code>docker rm -f web</code></td><td><code>kubectl delete pod web</code></td></tr>
+  </table>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>Namespaces</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>A namespace is a folder for objects. Names must be unique inside one, not across.</li>
+      <li><code>kube-system</code> holds the cluster's own parts. You will find the API server there.</li>
+      <li>Every command works in one namespace. <code>-n</code> picks another, <code>-A</code> means all.</li>
+      <li>Today everyone switches to <code>training</code>, so you can leave out <code>-n</code>.</li>
+    </ul>
+    <pre class="term">kubectl get namespaces
+kubectl get pods -n kube-system
+kubectl get pods -A
+
+kubectl create namespace training
+kubectl config set-context --current \
+  --namespace training</pre>
+  </div>
+</section>
+
+<section class="slide" data-time="10:15" data-kind="demo">
+  <h2>Demo: kill a pod, watch it come back</h2>
+  <div class="cols wide-left">
+    <pre class="term">kubectl create deployment demo \
+  --image=ghcr.io/amirilovic/k8s-training-app:v1 \
+  --replicas=3
+
+kubectl get pods -w          <span class="c"># second tab</span>
+
+kubectl delete pod demo-7c9f…-x2k4p
+<span class="c">demo-7c9f…-x2k4p   1/1   Terminating</span>
+<span class="ok">demo-7c9f…-q8m2z   0/1   ContainerCreating</span>
+<span class="ok">demo-7c9f…-q8m2z   1/1   Running</span></pre>
+    <div class="stack">
+      <p>You deleted a pod. The Deployment's controller saw 2 instead of 3 and made a new one, with a new name.</p>
+      <p class="small">This is the answer to "who restarts it in production?". After the break you start with bare Pods, which nobody restarts.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Delete the demo deployment afterwards: kubectl delete deployment demo.</li></ul></aside>
+</section>
+
+<section class="slide break" data-time="10:25" data-kind="break">
+  <h2>Break</h2>
+  <p class="lead">Back at 10:40 for Lab 1.</p>
+</section>
+
+<section class="slide lab" data-time="10:40" data-kind="lab">
+  <div class="eyebrow">Lab 1 · 50 minutes</div>
+  <h2>kubectl, Pods and namespaces</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Find the control plane in <code>kube-system</code>.</li>
+      <li>Create the <code>training</code> namespace and make it your default.</li>
+      <li>Run the app as a Pod, read its logs, exec into it.</li>
+      <li>Open it in the Windows browser through <code>port-forward</code>.</li>
+      <li>Delete the Pod and see that nothing brings it back.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/01-pods/README.md</div>
+      <p class="small">Browser: <code>http://localhost:8080</code> while <code>kubectl port-forward pod/web 8080:8080</code> runs.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide section" data-time="11:30" data-kind="talk">
+  <div class="eyebrow">20 minutes · talk</div>
+  <h2>Labels, ReplicaSets, Deployments</h2>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>Labels and selectors</h2>
+  <div class="cols">
+    <div class="diagram col">
+      <div class="box accent">selector: <code>app=web</code></div>
+      <div class="arrow v">↓ matches</div>
+      <div class="diagram">
+        <div class="box ok">pod<small>app=web</small></div>
+        <div class="box ok">pod<small>app=web</small></div>
+        <div class="box ghost">pod<small>app=postgres</small></div>
+      </div>
+    </div>
+    <ul class="points">
+      <li>Labels are key-value tags on any object.</li>
+      <li>A selector is a query over labels. Deployments and Services find their pods this way, not by name.</li>
+      <li>Change a pod's label and it leaves its Deployment. The Deployment then creates a replacement.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Demo if time: kubectl get pods --show-labels, then kubectl get pods -l app=web.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>Deployment, ReplicaSet, Pod</h2>
+  <div class="cols wide-right">
+    <div class="diagram col">
+      <div class="box accent">Deployment web<small>image, replicas, rollout strategy</small></div>
+      <div class="arrow v">↓ owns</div>
+      <div class="box">ReplicaSet web-848b6c9846<small>one per version of the pod template</small></div>
+      <div class="arrow v">↓ owns</div>
+      <div class="diagram">
+        <div class="box ok">web-848b…-cg4bh</div>
+        <div class="box ok">web-848b…-8cmwj</div>
+        <div class="box ok">web-848b…-b54cp</div>
+      </div>
+    </div>
+    <ul class="points">
+      <li>You write the Deployment. You never write the ReplicaSet.</li>
+      <li>The ReplicaSet keeps the count. The Deployment manages versions.</li>
+      <li>The hash in the name changes when the pod template changes.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>A rolling update, step by step</h2>
+  <table class="kubectl">
+    <tr><th>Step</th><th>Old ReplicaSet (v1)</th><th>New ReplicaSet (v2)</th></tr>
+    <tr><td>start</td><td>● ● ●</td><td></td></tr>
+    <tr><td>1</td><td>● ● ●</td><td class="t-lab">○ starting</td></tr>
+    <tr><td>2</td><td>● ●</td><td class="t-lab">●</td></tr>
+    <tr><td>3</td><td>● ●</td><td class="t-lab">● ○</td></tr>
+    <tr><td>…</td><td>●</td><td class="t-lab">● ●</td></tr>
+    <tr><td>done</td><td></td><td class="t-lab">● ● ●</td></tr>
+  </table>
+  <p class="small">Defaults: <code>maxSurge: 25%</code> rounds up to 1 extra pod, <code>maxUnavailable: 25%</code> rounds down to 0. With 3 replicas there are never fewer than 3 pods, and the old ReplicaSet stays around (scaled to 0) for rollback.</p>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>Kubernetes cannot see inside your app</h2>
+  <div class="cols">
+    <div class="stack">
+      <p>Without a readiness probe, a new pod counts as ready as soon as its container starts.</p>
+      <p>Our app waits 3 seconds before it listens. Kubernetes sends it traffic anyway.</p>
+      <p class="small">A broken release (<code>v3-broken</code> exits on startup) passes this test too, for a moment. In Lab 2 it replaces every healthy pod.</p>
+    </div>
+    <div class="figure">
+      <div><div class="n bad">9</div><div class="cap">failed requests out of 339 during a rollout from v1 to v2, no probes</div></div>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Measured on kind with a curl loop every 100 ms. They will see a similar number in Lab 2.</li><li>Tuesday's Lab 5 adds probes and gets 0 failures. Don't fix it today, let them feel it.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>Rollout commands</h2>
+  <div class="cols wide-left">
+    <pre class="term">kubectl set image deployment/web \
+  web=ghcr.io/amirilovic/k8s-training-app:v2
+kubectl rollout status deployment/web
+kubectl rollout history deployment/web
+
+kubectl rollout undo deployment/web
+kubectl rollout undo deployment/web --to-revision=1</pre>
+    <ul class="points">
+      <li><code>undo</code> goes back one revision, not to the first one.</li>
+      <li>In real projects you change the image tag in YAML and <code>apply</code>. <code>set image</code> is for the lab.</li>
+      <li>Never deploy <code>:latest</code>. You cannot roll back to "the previous latest".</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="11:30" data-kind="talk">
+  <h2>.NET: stopping cleanly</h2>
+  <div class="diagram">
+    <div class="box">pod marked for deletion</div>
+    <div class="arrow">→</div>
+    <div class="box accent">SIGTERM<small>.NET host starts shutdown</small></div>
+    <div class="arrow">→</div>
+    <div class="box">in-flight requests finish<small>HostOptions.ShutdownTimeout</small></div>
+    <div class="arrow">→</div>
+    <div class="box bad">SIGKILL<small>after 30 s grace period</small></div>
+  </div>
+  <ul class="points">
+    <li>The generic host handles SIGTERM for you. Look for "SIGTERM received" in the training app's logs.</li>
+    <li>Both timeouts default to 30 seconds in .NET 8 and later. Keep the host's shorter than <code>terminationGracePeriodSeconds</code>.</li>
+    <li>Long background work needs <code>stoppingToken</code> checks, or it is killed halfway.</li>
+  </ul>
+</section>
+
+<section class="slide lab" data-time="11:50" data-kind="lab">
+  <div class="eyebrow">Lab 2 · 55 minutes</div>
+  <h2>Deployments and rollouts</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Deploy <code>v1</code> with 3 replicas, delete a pod, scale.</li>
+      <li>Roll out <code>v2</code> while a curl loop runs. Count the failures.</li>
+      <li>Roll out <code>v3-broken</code> and watch the app go down.</li>
+      <li>Find out why with <code>kubectl logs</code>, then <code>rollout undo</code>.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/02-deployments/README.md</div>
+      <p class="small">The lab gives you a ready-made Service on <code>http://localhost:30080</code> for the curl loop. Services are tomorrow's first topic.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-time="12:45">
+  <h2>What you can do now</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Read the cluster: <code>get</code>, <code>describe</code>, <code>logs</code>, <code>explain</code>.</li>
+      <li>Run the app as a Deployment and change its replica count.</li>
+      <li>Release a new version and roll it back.</li>
+      <li>Explain why a rollout dropped requests.</li>
+    </ul>
+    <div class="stack">
+      <h3>Tomorrow</h3>
+      <p>Services and DNS, configuration from ConfigMaps and Secrets, probes and resource limits. We start by recreating today's Deployment with <code>kubectl apply</code>.</p>
+      <p class="small">If kubectl fails tomorrow after a reboot: <code>kind delete cluster --name training</code>, <code>setup/create-cluster.sh</code>, then apply <code>solutions/02-deployments/</code>.</p>
+    </div>
+  </div>
+</section>
+
+</div></div>
+<script src="deck.js"></script>
+</body>
+</html>

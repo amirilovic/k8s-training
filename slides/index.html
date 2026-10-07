@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kubernetes Training Slides</title>
+<link rel="stylesheet" href="deck.css">
+<style>
+  body { overflow: auto; }
+  main { max-width: 900px; margin: 0 auto; padding-block: 64px; padding-inline: 24px; display: grid; gap: 40px; }
+  .meta { font: 500 15px var(--mono); color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  main h1 { font-size: clamp(44px, 8vw, 72px); }
+  ul.days { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+  ul.days a {
+    display: grid; grid-template-columns: 9rem 1fr; gap: 6px 24px; align-items: baseline;
+    padding: 20px 24px; border: 2px solid var(--line); border-radius: 10px;
+    color: var(--ink); text-decoration: none; font-size: 18px; line-height: 1.4;
+  }
+  ul.days a:hover, ul.days a:focus-visible { border-color: var(--accent); }
+  ul.days .d { font: 600 14px var(--mono); color: var(--accent); letter-spacing: .08em; text-transform: uppercase; }
+  ul.days strong { font: 800 26px var(--display); }
+  ul.days span.t { grid-column: 2; color: var(--muted); }
+  .keys { font-size: 15px; color: var(--muted); }
+  .keys kbd { font: 600 13px var(--mono); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+  @media (max-width: 560px) { ul.days a { grid-template-columns: 1fr; } ul.days span.t { grid-column: 1; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="stack">
+    <div class="meta">Kubernetes for .NET developers · 12 to 14 October 2026</div>
+    <h1>Slides</h1>
+  </div>
+  <ul class="days">
+    <li><a href="day1.html"><span class="d">Monday 09–13</span><strong>From container to Deployment</strong><span class="t">Docker refresher, architecture, Pods, namespaces, Deployments, rolling updates. Labs 1 and 2.</span></a></li>
+    <li><a href="day2.html"><span class="d">Tuesday 09–13</span><strong>Services, config and health</strong><span class="t">Services and DNS, ConfigMaps and Secrets, probes, requests and limits. Labs 3 to 5.</span></a></li>
+    <li><a href="day3.html"><span class="d">Wednesday 09–15</span><strong>State, scale and shipping</strong><span class="t">Postgres and Jobs, debugging, HPA, Helm, Ingress, capstone. Labs 6 to 10.</span></a></li>
+  </ul>
+  <p class="keys">In a deck: <kbd>→</kbd> next, <kbd>←</kbd> back, <kbd>N</kbd> speaker notes, <kbd>O</kbd> overview, <kbd>T</kbd> theme, <kbd>F</kbd> fullscreen, <kbd>?</kbd> all keys.</p>
+</main>
+</body>
+</html>
