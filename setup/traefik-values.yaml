@@ -1,0 +1,20 @@
+# Values for the Traefik Helm chart, used in Lab 9:
+#   helm repo add traefik https://traefik.github.io/charts
+#   helm install traefik traefik/traefik --version 41.6.1 -n traefik --create-namespace -f setup/traefik-values.yaml
+#
+# Traefik becomes the cluster's ingress controller. Its HTTP port is NodePort 30081,
+# which kind.yaml publishes on your machine, so every Ingress is reachable at
+# http://<host>.localhost:30081 in the browser.
+service:
+  spec:
+    type: NodePort
+ports:
+  web:
+    nodePort: 30081
+  websecure:
+    expose:
+      default: false
+ingressClass:
+  enabled: true
+  isDefaultClass: false
+  name: traefik

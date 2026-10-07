@@ -1,0 +1,4 @@
+replicas: 1
+greeting: Hello from dev
+ingress:
+  host: dev.localhost

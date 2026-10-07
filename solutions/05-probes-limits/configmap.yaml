@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-config
+data:
+  appsettings.json: |
+    {
+      "Greeting": {
+        "Text": "Hello from a ConfigMap"
+      }
+    }

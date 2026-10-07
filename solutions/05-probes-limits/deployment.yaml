@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/amirilovic/k8s-training-app:v1
+          ports:
+            - containerPort: 8080
+          env:
+            # A ConfigMap mounted as a file changes in place, but .NET's file watcher
+            # does not notice Kubernetes' symlink swap. Polling does.
+            - name: DOTNET_USE_POLLING_FILE_WATCHER
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: "1"
+              memory: 256Mi
+          lifecycle:
+            preStop:
+              # Keep serving for 5 s after the pod is marked for deletion, while the
+              # Service removes it from its endpoints. Without this, a rolling update
+              # drops a few requests.
+              sleep:
+                seconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: web-config
+        - name: secrets
+          secret:
+            secretName: web-secrets

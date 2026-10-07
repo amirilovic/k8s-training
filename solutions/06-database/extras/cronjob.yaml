@@ -1,0 +1,22 @@
+# "Finished early?" extra from Lab 6: print the visit count every minute.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: visits-report
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: report
+              image: postgres:18-alpine
+              command: ["psql", "-h", "postgres", "-U", "training", "-d", "training", "-c", "select count(*) from visits"]
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres
+                      key: POSTGRES_PASSWORD

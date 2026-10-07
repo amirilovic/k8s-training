@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  type: NodePort
+  selector:
+    app: web
+  ports:
+    - port: 80          # the port other pods use: http://web
+      targetPort: 8080  # the port the container listens on
+      nodePort: 30080   # the port on every node; kind publishes it as http://localhost:30080

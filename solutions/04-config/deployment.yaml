@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/amirilovic/k8s-training-app:v1
+          ports:
+            - containerPort: 8080
+          env:
+            # A ConfigMap mounted as a file changes in place, but .NET's file watcher
+            # does not notice Kubernetes' symlink swap. Polling does.
+            - name: DOTNET_USE_POLLING_FILE_WATCHER
+              value: "true"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: secrets
+              mountPath: /secrets
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: web-config
+        - name: secrets
+          secret:
+            secretName: web-secrets

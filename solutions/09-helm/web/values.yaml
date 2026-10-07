@@ -1,0 +1,36 @@
+image:
+  repository: ghcr.io/amirilovic/k8s-training-app
+  tag: v1
+
+replicas: 2
+greeting: Hello from Helm
+
+# In a real project secrets come from a secret store, not from a values file in git.
+apiKey: training-api-key-1234
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: "1"
+    memory: 256Mi
+
+service:
+  type: ClusterIP
+  nodePort: null        # set together with type: NodePort, for example 30080
+
+ingress:
+  enabled: true
+  host: web.localhost   # open http://web.localhost:30081
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  cpuUtilization: 50
+
+postgres:
+  enabled: true
+  password: training-password
+  storage: 1Gi

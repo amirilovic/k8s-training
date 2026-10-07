@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/amirilovic/k8s-training-app:v1
+          args: ["migrate"]     # same image as the app, different command: apply EF Core migrations and exit
+          env:
+            - name: ConnectionStrings__Default
+              valueFrom:
+                secretKeyRef:
+                  name: web-secrets
+                  key: ConnectionStrings__Default
