@@ -2,7 +2,7 @@
 
 Three days of hands-on Kubernetes for developers, on a local kind cluster in WSL2. Monday 12 to Wednesday 14 October 2026.
 
-Before the training, complete [SETUP.md](SETUP.md) and run `setup/preflight.sh`.
+Before the training, complete [SETUP.md](SETUP.md) and run `setup/preflight.sh`. The schedule is in [AGENDA.md](AGENDA.md).
 
 ## Monday morning
 
@@ -49,6 +49,7 @@ kubectl apply -f solutions/03-services/
 | `labs/` | One folder per lab with instructions |
 | `solutions/` | The end state of each lab |
 | `capstone/` | Capstone task and `check.sh` |
+| `AGENDA.md`, `TRAINER.md` | Participant schedule; the trainer's full plan with timings and prep notes |
 | `slides/` | One HTML deck per day, open `slides/index.html`. Keys: arrows, N notes, O overview, T theme, F fullscreen |
 
 ## Ports on your machine
