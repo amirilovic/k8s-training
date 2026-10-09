@@ -1,14 +1,14 @@
-# Lab 5: Probes, requests and limits
+# Lab 6: Probes
 
-Kubernetes only knows that your process runs. It does not know whether the app is ready for traffic, whether it is stuck, or how much CPU and memory it needs. You tell it with probes and resource settings, then break the app on purpose to see what Kubernetes does with that information. At the end you repeat yesterday's rollout and it drops no requests. About 40 minutes.
+Kubernetes only knows that your process runs. It does not know whether the app is ready for traffic or whether it is stuck. You tell it with probes, then break the app on purpose to see what Kubernetes does with that information. At the end you repeat yesterday's rollout and it drops no requests. About 25 minutes.
 
 ## Before you start
 
-- Deployment `web`, ConfigMap `web-config`, Secret `web-secrets` and the NodePort Service from Lab 4 exist, and `curl -s localhost:30080/` answers.
-- Work in `~/k8s-training/work`, in your `deployment.yaml` from Lab 4.
+- Deployment `web`, ConfigMap `web-config`, Secret `web-secrets` and the NodePort Service from Lab 5 exist, and `curl -s localhost:30080/` answers.
+- Work in `~/k8s-training/work`, in your `deployment.yaml` from Lab 5.
 - Keep a second Ubuntu tab open for watching.
 
-Catch-up: `kubectl apply -f ~/k8s-training/solutions/04-config/`
+Catch-up: `kubectl apply -f ~/k8s-training/solutions/05-config/`
 
 The app has health endpoints, plus admin endpoints that break it on purpose:
 
@@ -19,7 +19,6 @@ The app has health endpoints, plus admin endpoints that break it on purpose:
 | `/admin/unready`, `/admin/ready` | Make `/readyz` fail, and fix it again |
 | `/admin/hang` | Make `/healthz` fail, like a deadlocked app whose process still runs |
 | `/admin/crash` | Exit the process with code 1 |
-| `/admin/leak` | Allocate memory until the container is killed |
 
 ## Steps
 
@@ -115,49 +114,7 @@ The restart count goes up again. `--previous` shows the log of the container tha
 kill %1
 ```
 
-### 5. Requests and limits
-
-Add resources to the container in `deployment.yaml`:
-
-```yaml
-          resources:
-            requests:          # what the scheduler reserves on a node for this pod
-              cpu: 100m        # 100 millicores = a tenth of a CPU core
-              memory: 128Mi
-            limits:            # the most the container may use
-              cpu: "1"
-              memory: 128Mi
-```
-
-```bash
-kubectl apply -f deployment.yaml
-kubectl rollout status deployment/web
-POD=$(kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
-kubectl port-forward pod/$POD 8080:8080 >/dev/null &
-curl -s localhost:8080/api/info; echo
-```
-
-Look at two numbers. `processorCount` is now `1`: .NET reads the CPU limit and sizes its thread pool and garbage collector for one core. `gcHeapLimitMb` is `96`: the .NET garbage collector keeps its heap at 75% of the memory limit.
-
-### 6. Run out of memory
-
-```bash
-curl -s localhost:8080/admin/leak
-sleep 8
-kubectl describe pod $POD | grep -A4 'Last State'
-```
-
-`Reason: OOMKilled`, `Exit Code: 137`. The app allocated memory outside the .NET heap until it passed 128Mi, and the Linux kernel killed the container. Kubernetes restarted it. The memory limit is a hard wall; going over it is not slowed down, it is killed.
-
-Clean up and give the app room again: set `limits.memory` to `256Mi` in `deployment.yaml` and apply.
-
-```bash
-kill %1
-kubectl apply -f deployment.yaml
-kubectl rollout status deployment/web
-```
-
-### 7. Repeat yesterday's rollout
+### 5. Repeat yesterday's rollout
 
 In Lab 2 a rollout dropped a few requests. One more setting closes the last gap: when a pod is stopped, it should keep serving for a few seconds while the Service removes it. Add this to the container:
 
@@ -192,10 +149,10 @@ The version changes from v1 to v2 and no `FAILED` line appears. The readiness pr
 
 ```bash
 kubectl get pods
-kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].readinessProbe.httpGet.path} {.spec.template.spec.containers[0].livenessProbe.httpGet.path} {.spec.template.spec.containers[0].resources.limits.memory}'; echo
+kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].readinessProbe.httpGet.path} {.spec.template.spec.containers[0].livenessProbe.httpGet.path}'; echo
 ```
 
-Expected: 3 pods `1/1 Running`, and `/readyz /healthz 256Mi`.
+Expected: 3 pods `1/1 Running`, and `/readyz /healthz`.
 
 ## Finished early?
 
@@ -207,9 +164,3 @@ Expected: 3 pods `1/1 Running`, and `/readyz /healthz 256Mi`.
   ```
 
   This time one new pod crashes and the rollout stops there. The 3 old pods keep serving and the loop shows no failures. Yesterday the same release took the whole app down. Roll back with `kubectl rollout undo deployment/web`.
-
-- Leak managed memory instead: `curl -s 'localhost:8080/admin/leak?managed=true'` through a port-forward, then `kubectl logs $POD`. The .NET heap hits its 75% limit first and throws `OutOfMemoryException`. The container survives, and `RESTARTS` does not change. In a real app that exception lands in some random request.
-
-- Ask for more than the cluster has: set `requests.cpu` to `"64"` and apply. Run `kubectl get pods` and `kubectl describe pod` on a new pod: `Pending`, with `Insufficient cpu` in the events. No node can reserve 64 cores, so the scheduler never places it. Set it back to `100m`.
-
-- Watch resource use: `kubectl top pods` (works once metrics-server is installed on day 3), or in k9s.

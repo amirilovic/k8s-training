@@ -1,18 +1,14 @@
-# Lab 8: autoscaling with the HorizontalPodAutoscaler
+# Lab 7: Requests, limits and autoscaling
 
-Goal: let Kubernetes add pods when the app is busy and remove them when it is quiet, and watch it happen.
-
-Duration: 30 minutes.
+Kubernetes does not know how much CPU and memory your app needs. You tell it with requests and limits, see how .NET reacts to them, and break through the memory limit on purpose. Then you let the HorizontalPodAutoscaler add pods when the app is busy and remove them when it is quiet. About 50 minutes.
 
 ## Before you start
 
-You need the `web` Deployment and Service from Lab 6 in namespace `training`. The important part is that the container has a CPU request (`requests.cpu: 100m` since Lab 5). Without a request, the autoscaler has nothing to compare against.
+- Deployment `web` with probes, ConfigMap `web-config`, Secret `web-secrets` and the NodePort Service from Lab 6 exist, and `curl -s localhost:30080/` answers.
+- Work in `~/k8s-training/work`, in your `deployment.yaml` from Lab 6.
+- Keep a second Ubuntu tab open. You will watch in one and generate load in the other.
 
-If you are behind:
-
-```bash
-kubectl apply -f ~/k8s-training/solutions/06-database/
-```
+Catch-up: `kubectl apply -f ~/k8s-training/solutions/06-probes/`
 
 metrics-server should already be running; we installed it this morning with:
 
@@ -29,11 +25,55 @@ kubectl top pods
 
 If `kubectl top` says `metrics not available yet`, wait a minute. metrics-server collects data every 15 seconds and needs a couple of rounds first.
 
-Open a second terminal (a second Ubuntu tab in Windows Terminal). You will watch in one and generate load in the other.
+## Part A: requests and limits
 
-## Steps
+### 1. Set requests and limits
 
-### 1. Look at the numbers the autoscaler uses
+Add resources to the container in `deployment.yaml`:
+
+```yaml
+          resources:
+            requests:          # what the scheduler reserves on a node for this pod
+              cpu: 100m        # 100 millicores = a tenth of a CPU core
+              memory: 128Mi
+            limits:            # the most the container may use
+              cpu: "1"
+              memory: 128Mi
+```
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl rollout status deployment/web
+POD=$(kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
+kubectl port-forward pod/$POD 8080:8080 >/dev/null &
+curl -s localhost:8080/api/info; echo
+```
+
+Look at two numbers. `processorCount` is now `1`: .NET reads the CPU limit and sizes its thread pool and garbage collector for one core. `gcHeapLimitMb` is `96`: the .NET garbage collector keeps its heap at 75% of the memory limit.
+
+### 2. Run out of memory
+
+```bash
+curl -s localhost:8080/admin/leak
+sleep 8
+kubectl describe pod $POD | grep -A4 'Last State'
+```
+
+`Reason: OOMKilled`, `Exit Code: 137`. The app allocated memory outside the .NET heap until it passed 128Mi, and the Linux kernel killed the container. Kubernetes restarted it. The memory limit is a hard wall; going over it is not slowed down, it is killed.
+
+Clean up and give the app room again: set `limits.memory` to `256Mi` in `deployment.yaml` and apply.
+
+```bash
+kill %1
+kubectl apply -f deployment.yaml
+kubectl rollout status deployment/web
+```
+
+## Part B: autoscaling
+
+The autoscaler needs the CPU request you just set. It reads usage as a percentage of the request, so without a request it has nothing to compare against.
+
+### 3. Look at the numbers the autoscaler uses
 
 ```bash
 kubectl top pods -l app=web
@@ -42,7 +82,7 @@ kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].resou
 
 An idle pod uses around 10m CPU (10 thousandths of a core) against a request of 100m. The autoscaler reads usage as a percentage of the request: 10m of 100m is 10%.
 
-### 2. Create the HPA
+### 4. Create the HPA
 
 Create `hpa.yaml`:
 
@@ -79,7 +119,7 @@ After about 15 seconds `TARGETS` shows something like `cpu: 9%/50%`: current ave
 
 The HPA now owns the replica count. If the Deployment had 3 replicas, the HPA brings it down to 2, the minimum, because usage is far below the target.
 
-### 3. Watch
+### 5. Watch
 
 In the first terminal:
 
@@ -87,7 +127,7 @@ In the first terminal:
 kubectl get hpa web -w
 ```
 
-### 4. Generate load
+### 6. Generate load
 
 In the second terminal, start a pod that calls the app's `/work` endpoint in an endless loop. Each call keeps one CPU busy for 100 ms on whichever pod answers.
 
@@ -104,7 +144,7 @@ kubectl top pods -l app=web
 
 The autoscaler computes `desired replicas = current replicas × current usage ÷ target`, rounded up. At 2 pods and 400% against a target of 50%, that is 16, so it stops at the maximum of 6. With 6 pods sharing the same load, usage per pod drops.
 
-### 5. Stop the load and watch it scale down
+### 7. Stop the load and watch it scale down
 
 ```bash
 kubectl delete pod load --now
@@ -114,7 +154,7 @@ kubectl delete pod load --now
 
 Usage falls within a minute. Because of `stabilizationWindowSeconds: 30`, the HPA removes pods 30 seconds after the low readings start, and you are back at 2 replicas about a minute after the load stopped. With the default window of 5 minutes, you would still be waiting.
 
-### 6. Read what the HPA decided
+### 8. Read what the HPA decided
 
 ```bash
 kubectl describe hpa web
@@ -125,6 +165,7 @@ The `Events` section lists each scaling decision with its reason, for example `N
 ## Check yourself
 
 ```bash
+kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}'; echo   # 256Mi
 kubectl get hpa web          # TARGETS shows a percentage, not <unknown>; MINPODS 2, MAXPODS 6
 kubectl describe hpa web | grep SuccessfulRescale
 ```
@@ -133,6 +174,8 @@ You should see at least one scale-up and one scale-down event.
 
 ## Finished early?
 
+- Leak managed memory instead: `curl -s 'localhost:8080/admin/leak?managed=true'` through a port-forward, then `kubectl logs $POD`. The .NET heap hits its 75% limit first and throws `OutOfMemoryException`. The container survives, and `RESTARTS` does not change. In a real app that exception lands in some random request.
+- Ask for more than the cluster has: set `requests.cpu` to `"64"` and apply. Run `kubectl get pods` and `kubectl describe pod` on a new pod: `Pending`, with `Insufficient cpu` in the events. No node can reserve 64 cores, so the scheduler never places it. Set it back to `100m`.
 - Remove the replica count from your Deployment manifest. While an HPA manages a Deployment, every `kubectl apply` of a manifest with `replicas: 3` resets the count to 3 until the HPA corrects it again. Delete the `replicas:` line so the two do not fight.
 - Start a second load pod (`load2`) while the first is running. Does the HPA go above 6? Raise `maxReplicas` to 10 and try again. How many pods fit on your two worker nodes before some stay `Pending`?
 - Add a second metric, memory at 80% of the request. The HPA scales on whichever metric asks for more pods.

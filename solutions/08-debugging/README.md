@@ -1,6 +1,6 @@
-# Lab 7 solutions
+# Lab 8 solutions
 
-Each scenario lives in its own namespace and was created by `labs/07-debugging/setup.sh`. Every fix below was tested.
+Each scenario lives in its own namespace and was created by `labs/08-debugging/setup.sh`. Every fix below was tested.
 
 ## debug-1: image tag that does not exist
 
@@ -59,7 +59,7 @@ Each scenario lives in its own namespace and was created by `labs/07-debugging/s
   kubectl -n debug-5 rollout undo deployment/web
   ```
 
-- Why both pods broke: a rolling update replaces one pod at a time and waits until the new one is available. This Deployment has no readiness probe, so a new pod counts as available the moment its container starts, a fraction of a second before the app exits. The rollout therefore carried on and replaced every working pod. With the readiness probe from Lab 5, the first new pod never becomes ready, the rollout stalls, and the old pods keep serving.
+- Why both pods broke: a rolling update replaces one pod at a time and waits until the new one is available. This Deployment has no readiness probe, so a new pod counts as available the moment its container starts, a fraction of a second before the app exits. The rollout therefore carried on and replaced every working pod. With the readiness probe from Lab 6, the first new pod never becomes ready, the rollout stalls, and the old pods keep serving.
 
 ## debug-6: readiness probe on the wrong path (finished early)
 

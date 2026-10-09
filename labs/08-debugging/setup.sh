@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates the broken scenarios for Lab 7, each in its own namespace (debug-1 ... debug-7).
+# Creates the broken scenarios for Lab 8, each in its own namespace (debug-1 ... debug-7).
 set -euo pipefail
 cd "$(dirname "$0")/broken"
 kubectl apply -f 1.yaml -f 2.yaml -f 3.yaml -f 4.yaml -f 5.yaml -f 6.yaml -f 7.yaml >/dev/null

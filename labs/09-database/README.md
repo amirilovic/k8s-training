@@ -1,4 +1,4 @@
-# Lab 6: a database with persistent storage
+# Lab 9: a database with persistent storage
 
 Goal: run Postgres in the cluster, keep its data on a PersistentVolumeClaim, apply the EF Core migrations with a Job, and connect the app to it.
 
@@ -6,12 +6,12 @@ Duration: 45 minutes.
 
 ## Before you start
 
-You need the state from the end of Lab 5: the `web` Deployment with probes and limits, the `web` Service on NodePort 30080, the `web-config` ConfigMap and the `web-secrets` Secret, all in namespace `training`.
+You need the state from the end of Lab 7: the `web` Deployment with probes and limits and its HPA, the `web` Service on NodePort 30080, the `web-config` ConfigMap and the `web-secrets` Secret, all in namespace `training`.
 
 If you are behind, catch up with:
 
 ```bash
-kubectl apply -f ~/k8s-training/solutions/05-probes-limits/
+kubectl apply -f ~/k8s-training/solutions/07-limits-hpa/
 ```
 
 Work in `~/k8s-training/work/` as before.
@@ -126,7 +126,7 @@ The claim moves from `Pending` to `Bound` once the Postgres pod is scheduled. `k
 
 ### 3. Give the app the connection string
 
-The app reads `ConnectionStrings:Default` from configuration. Add it to the `web-secrets` Secret from Lab 4. Edit `secret.yaml`:
+The app reads `ConnectionStrings:Default` from configuration. Add it to the `web-secrets` Secret from Lab 5. Edit `secret.yaml`:
 
 ```yaml
 apiVersion: v1

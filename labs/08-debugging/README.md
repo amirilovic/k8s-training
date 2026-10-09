@@ -1,4 +1,4 @@
-# Lab 7: debugging
+# Lab 8: debugging
 
 Goal: find and fix five broken deployments on your own, using only `kubectl get`, `describe`, `logs` and events. For each one, write down the symptom you saw first, the cause, and the fix.
 
@@ -11,7 +11,7 @@ You need a running cluster. Nothing from earlier labs is needed, and nothing in 
 Create the broken scenarios:
 
 ```bash
-~/k8s-training/labs/07-debugging/setup.sh
+~/k8s-training/labs/08-debugging/setup.sh
 ```
 
 This creates seven namespaces, `debug-1` to `debug-7`. Each one contains a Deployment called `web` and a Service called `web`, and each one is broken in a different way. Scenarios 1 to 5 are the main exercise. Scenarios 6 and 7 are for when you are done.
@@ -92,12 +92,12 @@ done
 ## Finished early?
 
 - Fix `debug-6` and `debug-7`. They are broken in ways that look different from the first five.
-- Scenario 5 broke both pods, even though Kubernetes replaces pods one at a time during a rollout. Find out why. Hint: compare the Deployment with yours from Lab 5, and think about when Kubernetes considers a new pod "available".
+- Scenario 5 broke both pods, even though Kubernetes replaces pods one at a time during a rollout. Find out why. Hint: compare the Deployment with yours from Lab 6, and think about when Kubernetes considers a new pod "available".
 - Install k9s if you have not yet (it is in the setup guide), run `k9s`, type `:pods` and press `0` to show all namespaces. Find the broken pods, press `d` to describe and `l` to see logs.
 
 ## Clean up
 
 ```bash
-~/k8s-training/labs/07-debugging/cleanup.sh
+~/k8s-training/labs/08-debugging/cleanup.sh
 kubectl config set-context --current --namespace training
 ```

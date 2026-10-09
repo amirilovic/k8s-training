@@ -1,15 +1,15 @@
-# Lab 9: Helm
+# Lab 10: Helm
 
-Goal: install someone else's application from a Helm chart, then package your own manifests as a chart and deploy it twice, as dev and as prod, from the same templates.
+Goal: see where Tuesday's Traefik manifest came from, then package your own manifests as a chart and deploy it twice, as dev and as prod, from the same templates.
 
 Duration: 30 minutes.
 
 ## Before you start
 
-You need your manifests from Labs 5 and 6 in `~/k8s-training/work/`: `deployment.yaml`, `service.yaml`, `configmap.yaml` and `secret.yaml`. If you are missing any, copy them from the solutions:
+You need your manifests from Labs 7 and 9 in `~/k8s-training/work/`: `deployment.yaml`, `service.yaml`, `configmap.yaml` and `secret.yaml`. If you are missing any, copy them from the solutions:
 
 ```bash
-cp ~/k8s-training/solutions/05-probes-limits/*.yaml ~/k8s-training/work/
+cp ~/k8s-training/solutions/09-database/{deployment,service,configmap,secret}.yaml ~/k8s-training/work/
 ```
 
 Check that Helm is installed:
@@ -20,18 +20,19 @@ helm version
 
 ## Steps
 
-### Part A: use a chart
+### Part A: render someone else's chart
 
-### 1. Install Traefik, an ingress controller
+### 1. Where setup/traefik.yaml came from
 
-Lab 10 needs an ingress controller, the component that receives HTTP traffic from outside the cluster and forwards it to your Services. We install Traefik from its official chart.
+On Tuesday you installed Traefik with `kubectl apply -f setup/traefik.yaml`. That file was not written by hand. It is Traefik's official Helm chart, rendered once. Render it yourself:
 
 ```bash
 helm repo add traefik https://traefik.github.io/charts
 helm repo update
-helm install traefik traefik/traefik --version 41.6.1 \
-  -n traefik --create-namespace \
-  -f ~/k8s-training/setup/traefik-values.yaml
+helm template traefik traefik/traefik --version 41.6.1 \
+  -n traefik \
+  -f ~/k8s-training/setup/traefik-values.yaml > /tmp/traefik.yaml
+diff /tmp/traefik.yaml ~/k8s-training/setup/traefik.yaml
 ```
 
 The parts of that command:
@@ -39,17 +40,19 @@ The parts of that command:
 - `traefik` (first) is the release name, your name for this installation.
 - `traefik/traefik` is the chart: repository `traefik`, chart `traefik`.
 - `--version` pins the chart version, so everyone gets the same thing.
-- `-f` passes a values file that overrides the chart's defaults. Open `~/k8s-training/setup/traefik-values.yaml`: it changes a few settings. The chart has hundreds; see them with `helm show values traefik/traefik --version 41.6.1 | less`.
+- `-f` passes a values file that overrides the chart's defaults. Open `~/k8s-training/setup/traefik-values.yaml`: it changes a few settings, such as the NodePort 30081. The chart has hundreds; see them with `helm show values traefik/traefik --version 41.6.1 | less`.
 
-### 2. Look at what Helm created
+`diff` shows only the first six lines of the repo's file: a comment and the `traefik` Namespace, which the trainer added because `helm template` does not create namespaces. Everything else is identical. A few lines of values became about 270 lines of Kubernetes objects.
+
+### 2. What helm install adds
+
+`helm template` only prints YAML. `helm install` sends the same YAML to the cluster and also records it as a release, so Helm can later upgrade, roll back and uninstall everything it created as one unit.
 
 ```bash
-helm list -n traefik
-helm get values traefik -n traefik
-kubectl get all -n traefik
+helm list -A
 ```
 
-One `helm install` created a Deployment, a Service of type NodePort on port 30081, and RBAC objects you did not have to write (`kubectl get all` does not show those). Open `http://test.localhost:30081` in the browser. You get `404 page not found` from Traefik: it is running, but no Ingress tells it where to send traffic yet. That comes in Lab 10.
+The list is empty. Your Traefik works, but Helm does not know about it, because it came from `kubectl apply`. Your own chart in Part B is installed with `helm install`, so you get the release history.
 
 ### Part B: write a chart
 
@@ -77,7 +80,7 @@ A chart is a directory with `Chart.yaml`, a `values.yaml` and a `templates/` fol
 
 Two of the copied files would clash with what is already running in namespace `training`:
 
-- `service.yaml`: remove `type: NodePort` and the `nodePort: 30080` line. Only one Service in the whole cluster can own NodePort 30080. A plain ClusterIP Service is enough; you reach it with `port-forward` here and through Traefik in Lab 10.
+- `service.yaml`: remove `type: NodePort` and the `nodePort: 30080` line. Only one Service in the whole cluster can own NodePort 30080. A plain ClusterIP Service is enough; you reach it with `port-forward` here and through Traefik in the capstone.
 - `secret.yaml`: remove the `ConnectionStrings__Default` line and keep only `Secrets__ApiKey`. The chart installs into a new namespace without a database. With a connection string, the app's readiness check would fail and no pod would become ready.
 
 ### 5. Turn the fixed values into parameters
@@ -192,7 +195,7 @@ Helm keeps every revision, so a rollback brings back the exact manifests of that
 ## Check yourself
 
 ```bash
-helm list -A                                # traefik, web (web-dev), web (web-prod), all deployed
+helm list -A                                # web (web-dev) and web (web-prod), both deployed
 kubectl get deployment web -n web-dev       # 1/1
 kubectl get deployment web -n web-prod      # 3/3
 helm history web -n web-dev                 # 3 revisions, the last one a rollback to 1
@@ -200,7 +203,7 @@ helm history web -n web-dev                 # 3 revisions, the last one a rollba
 
 ## Finished early?
 
-- Open the reference chart in `~/k8s-training/solutions/09-helm/web/`. It adds an Ingress, an optional HPA and an optional Postgres database, and runs the migration Job as a Helm hook after every install and upgrade (`helm.sh/hook: post-install,post-upgrade`). This is the chart you can start the capstone from.
+- Open the reference chart in `~/k8s-training/solutions/10-helm/web/`. It adds an Ingress, an optional HPA and an optional Postgres database, and runs the migration Job as a Helm hook after every install and upgrade (`helm.sh/hook: post-install,post-upgrade`). This is the chart you can start the capstone from.
 - In the reference chart, the Deployment has `checksum/config` and `checksum/secret` annotations. Find out what they do: change only the greeting with `helm upgrade` in your chart and in the reference chart, and compare whether the pods are replaced.
 - Use `{{ .Release.Name }}` instead of the fixed name `web` in your templates, so the same chart can be installed twice in one namespace.
 - Try `helm upgrade --install`. It installs when the release does not exist and upgrades when it does, which is what CI pipelines usually run.

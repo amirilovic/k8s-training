@@ -14,7 +14,7 @@ builder.Logging.AddSimpleConsole(o =>
     o.TimestampFormat = "HH:mm:ss ";
 });
 
-// Lab 4: a ConfigMap mounted at /config and a Secret mounted at /secrets.
+// Lab 5: a ConfigMap mounted at /config and a Secret mounted at /secrets.
 // Environment variables and command-line arguments are added again afterwards,
 // so they still win over the mounted files, as in a default ASP.NET Core app.
 builder.Configuration
@@ -131,7 +131,7 @@ app.MapGet("/api/info", (IConfiguration config) => Results.Json(new
 app.MapHealthChecks("/healthz", new() { Predicate = c => c.Tags.Contains("live") });
 app.MapHealthChecks("/readyz", new() { Predicate = c => c.Tags.Contains("ready") });
 
-// Burns CPU on the request thread. Lab 8 sends a steady stream of these to trigger the HPA.
+// Burns CPU on the request thread. Lab 7 sends a steady stream of these to trigger the HPA.
 app.MapGet("/work", (int? ms) =>
 {
     var duration = Math.Clamp(ms ?? 100, 1, 5000);

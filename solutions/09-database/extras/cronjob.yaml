@@ -1,4 +1,4 @@
-# "Finished early?" extra from Lab 6: print the visit count every minute.
+# "Finished early?" extra from Lab 9: print the visit count every minute.
 apiVersion: batch/v1
 kind: CronJob
 metadata:

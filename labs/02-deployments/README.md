@@ -114,7 +114,7 @@ kubectl rollout status deployment/web
 - A new pod gets traffic as soon as its container starts, but the app needs 3 seconds before it listens.
 - An old pod stops listening the moment it gets the stop signal, while the Service may still send it requests for a moment.
 
-Kubernetes cannot know when your app is really ready. You tell it with a readiness probe in Lab 5, and then this rollout drops nothing.
+Kubernetes cannot know when your app is really ready. You tell it with a readiness probe in Lab 6, and then this rollout drops nothing.
 
 Update `image:` in `deployment.yaml` to `v2` too, so your file matches the cluster.
 
@@ -163,7 +163,7 @@ kubectl rollout status deployment/web
 kubectl rollout history deployment/web
 ```
 
-`undo` goes back one revision, to v2. The curl loop recovers. In Lab 5 a readiness probe stops a release like this one before it takes down the healthy pods.
+`undo` goes back one revision, to v2. The curl loop recovers. In Lab 6 a readiness probe stops a release like this one before it takes down the healthy pods.
 
 Stop the curl loop with Ctrl+C.
 

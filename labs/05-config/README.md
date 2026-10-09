@@ -1,14 +1,13 @@
-# Lab 4: ConfigMaps and Secrets
+# Lab 5: ConfigMaps and Secrets
 
 The same image runs in dev and in production with different settings. You give the app its configuration three ways: an environment variable, an `appsettings.json` file from a ConfigMap, and an API key from a Secret. You see how this maps onto .NET configuration, and what happens when you change a ConfigMap while the app runs. About 45 minutes.
 
 ## Before you start
 
-- Deployment `web` and the NodePort Service from Lab 3 run, and `curl -s localhost:30080/` answers.
-- Set the image in your `deployment.yaml` back to `v1`, so it matches the steps below.
+- Deployment `web` with image `v1` and the NodePort Service from Lab 3 run, and `curl -s localhost:30080/` answers.
 - Work in `~/k8s-training/work`.
 
-Catch-up: `kubectl apply -f ~/k8s-training/solutions/03-services/`
+Catch-up: `kubectl apply -f ~/k8s-training/solutions/04-ingress/`
 
 How the app reads configuration: like any ASP.NET Core app it reads `appsettings.json`, then a file at `/config/appsettings.json` if one is mounted, then files in `/secrets`, then environment variables. A later source wins. The greeting on the start page is the setting `Greeting:Text`.
 
