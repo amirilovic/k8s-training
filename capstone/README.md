@@ -8,7 +8,7 @@ Duration: 60 minutes.
 
 - Work in pairs, on one laptop. Swap who types every 15 minutes.
 - Pick a pair name, for example your first names: `anna-ben`. You use it in the namespace and the hostname, so it must be lowercase letters, digits and dashes.
-- Traefik from Lab 9 must be running: `kubectl get pods -n traefik`.
+- Traefik from Lab 4 must be running: `kubectl get pods -n traefik`.
 - metrics-server must be running: `kubectl top nodes` prints numbers.
 
 ## The task
@@ -29,8 +29,8 @@ Deploy to namespace `capstone-<pair>` (for example `capstone-anna-ben`), with He
 
 You have two options:
 
-1. Extend your own chart from Lab 9. Add templates for the HPA, the Ingress, Postgres (from Lab 6) and the migration Job. This is the better exercise.
-2. Start from the reference chart in `~/k8s-training/solutions/09-helm/web/`. Read every template first and be ready to explain what each one does. Then write a values file for your pair, for example `values-capstone.yaml`, that turns on autoscaling and sets your Ingress host.
+1. Extend your own chart from Lab 10. Add templates for the HPA, the Ingress, Postgres (from Lab 9) and the migration Job. This is the better exercise.
+2. Start from the reference chart in `~/k8s-training/solutions/10-helm/web/`. Read every template first and be ready to explain what each one does. Then write a values file for your pair, for example `values-capstone.yaml`, that turns on autoscaling and sets your Ingress host.
 
 Either way, render before you install:
 
@@ -44,7 +44,7 @@ and install into your namespace:
 helm install web ./web -n capstone-<pair> --create-namespace -f values-capstone.yaml --wait --timeout 3m
 ```
 
-If `--wait` times out, do not reinstall. Find out why, with the routine from Lab 7: `kubectl get pods -n capstone-<pair>`, then `describe` and `logs`. Fix the chart and run `helm upgrade` with the same arguments.
+If `--wait` times out, do not reinstall. Find out why, with the routine from Lab 8: `kubectl get pods -n capstone-<pair>`, then `describe` and `logs`. Fix the chart and run `helm upgrade` with the same arguments.
 
 Things that commonly go wrong:
 

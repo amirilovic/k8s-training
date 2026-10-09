@@ -11,23 +11,21 @@
 
 <section class="slide cover">
   <div class="meta">Kubernetes for .NET developers · Day 2 of 3 · Tuesday 13 October</div>
-  <h1>Services, config<br>and health</h1>
-  <p class="lead">How traffic finds your pods, how the app gets its configuration, and how Kubernetes knows it is healthy.</p>
+  <h1>Services, ingress,<br>config and health</h1>
+  <p class="lead">How traffic finds your pods, how the browser reaches them by hostname, how the app gets its configuration, and how Kubernetes knows it is healthy.</p>
 </section>
 
 <section class="slide" data-time="09:00">
   <h2>Today</h2>
   <table class="kubectl">
     <tr><th>Time</th><th>Name</th><th>Type</th><th>Duration</th></tr>
-    <tr><td>09:00</td><td>Recap, recreate yesterday's Deployment</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>09:20</td><td>Services and DNS</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>09:40</td><td>Lab 3: Services</td><td class="t-lab">lab</td><td>40m</td></tr>
+    <tr><td>09:00</td><td>Recap, recreate yesterday's Deployment</td><td class="t-talk">talk</td><td>15m</td></tr>
+    <tr><td>09:15</td><td>Services and DNS</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>09:35</td><td>Ingress</td><td class="t-talk">talk</td><td>10m</td></tr>
+    <tr><td>09:45</td><td>Configuration</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>10:05</td><td>Probes</td><td class="t-talk">talk</td><td>15m</td></tr>
     <tr><td>10:20</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
-    <tr><td>10:35</td><td>Configuration</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>10:55</td><td>Lab 4: ConfigMaps and Secrets</td><td class="t-lab">lab</td><td>45m</td></tr>
-    <tr><td>11:40</td><td>Break</td><td class="t-break">break</td><td>10m</td></tr>
-    <tr><td>11:50</td><td>Probes and resources</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>12:10</td><td>Lab 5: Probes and limits</td><td class="t-lab">lab</td><td>40m</td></tr>
+    <tr><td>10:35</td><td>Lab block: Labs 3 to 6</td><td class="t-lab">lab</td><td>135m</td></tr>
     <tr><td>12:50</td><td>Recap and questions</td><td class="t-talk">talk</td><td>10m</td></tr>
   </table>
 </section>
@@ -48,12 +46,12 @@ kubectl get deployment,pods</pre>
   <aside class="notes"><ul><li>Answers: the ReplicaSet controller creates a replacement; the ReplicaSet keeps a count, the Deployment manages versions; no readiness probe so a starting pod got traffic; undo goes to v2, the previous revision.</li><li>Anyone whose cluster is gone: kind delete cluster --name training, setup/create-cluster.sh, then the apply above.</li></ul></aside>
 </section>
 
-<section class="slide section" data-time="09:20" data-kind="talk">
+<section class="slide section" data-time="09:15" data-kind="talk">
   <div class="eyebrow">20 minutes · talk</div>
   <h2>Services and DNS</h2>
 </section>
 
-<section class="slide" data-time="09:20" data-kind="talk">
+<section class="slide" data-time="09:15" data-kind="talk">
   <h2>Pods come and go. Their IPs too.</h2>
   <div class="cols">
     <pre class="term">kubectl get pods -o wide
@@ -73,7 +71,7 @@ kubectl delete pod web-848b…-cg4bh
   </div>
 </section>
 
-<section class="slide" data-time="09:20" data-kind="talk">
+<section class="slide" data-time="09:15" data-kind="talk">
   <h2>A Service finds pods by label</h2>
   <div class="diagram">
     <div class="box accent">Service web<small>10.96.198.9 · port 80</small></div>
@@ -92,7 +90,7 @@ kubectl delete pod web-848b…-cg4bh
   </ul>
 </section>
 
-<section class="slide" data-time="09:20" data-kind="talk">
+<section class="slide" data-time="09:15" data-kind="talk">
   <h2>Service types</h2>
   <table>
     <tr><th>Type</th><th>Reachable from</th><th>Used for</th></tr>
@@ -100,10 +98,10 @@ kubectl delete pod web-848b…-cg4bh
     <tr><td><code>NodePort</code></td><td>every node, on a port 30000–32767</td><td>labs, and as the plumbing under ingress controllers</td></tr>
     <tr><td><code>LoadBalancer</code></td><td>a cloud load balancer in front of the nodes</td><td>ingress controllers in the cloud</td></tr>
   </table>
-  <p class="small">In real clusters, apps use ClusterIP and outside traffic comes in through an Ingress (Wednesday). NodePort is today's shortcut to your browser.</p>
+  <p class="small">In real clusters, apps use ClusterIP and outside traffic comes in through an Ingress, the next talk. NodePort is the shortcut to your browser.</p>
 </section>
 
-<section class="slide" data-time="09:20" data-kind="talk">
+<section class="slide" data-time="09:15" data-kind="talk">
   <h2>From your browser to a pod</h2>
   <div class="diagram">
     <div class="box">Windows browser<small>localhost:30080</small></div>
@@ -134,7 +132,7 @@ kubectl delete pod web-848b…-cg4bh
   </div>
 </section>
 
-<section class="slide" data-time="09:20" data-kind="talk">
+<section class="slide" data-time="09:15" data-kind="talk">
   <h2>Cluster DNS</h2>
   <div class="cols">
     <table>
@@ -151,34 +149,97 @@ kubectl delete pod web-848b…-cg4bh
   <aside class="notes"><ul><li>The connection point matters for .NET: HttpClient pools connections, so one client instance can stick to one pod for a long time. SocketsHttpHandler.PooledConnectionLifetime helps spread load.</li></ul></aside>
 </section>
 
-<section class="slide lab" data-time="09:40" data-kind="lab">
-  <div class="eyebrow">Lab 3 · 40 minutes</div>
-  <h2>Services</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Build a ClusterIP Service and call it by name from a throwaway pod.</li>
-      <li>Break the selector and watch the endpoints disappear.</li>
-      <li>Change it to NodePort 30080 and open it in the Windows browser.</li>
-      <li>Watch the pod name change with a curl loop.</li>
-    </ul>
+<section class="slide section" data-time="09:35" data-kind="talk">
+  <div class="eyebrow">10 minutes · talk</div>
+  <h2>Ingress</h2>
+</section>
+
+<section class="slide" data-time="09:35" data-kind="talk">
+  <h2>One entry point, routed by host and path</h2>
+  <div class="diagram">
+    <div class="box">browser<small>app.localhost:30081</small></div>
+    <div class="arrow">→</div>
+    <div class="box accent">Traefik<small>ingress controller, NodePort 30081</small></div>
+    <div class="arrow">→</div>
+    <div class="diagram col">
+      <div class="box">Service web<small>host app.localhost</small></div>
+      <div class="box">Service web-v2<small>host v2.localhost</small></div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="box ok">pods</div>
+  </div>
+  <ul class="points">
+    <li>An Ingress is a set of routing rules. It does nothing without a controller that reads it.</li>
+    <li>Apps keep ClusterIP Services. Only the controller is exposed.</li>
+    <li>Chrome and Edge send any <code>*.localhost</code> name to your own machine, so no hosts file edits.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="09:35" data-kind="talk">
+  <h2>An Ingress in YAML</h2>
+  <div class="cols wide-left">
+    <pre>apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: app.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port: { number: 80 }</pre>
     <div class="stack">
-      <div class="path">labs/03-services/README.md</div>
-      <p class="small">Starts by deleting the ready-made Service from Lab 2.</p>
+      <p><code>ingressClassName</code> picks the controller. Older charts use an annotation instead:</p>
+      <pre>metadata:
+  annotations:
+    kubernetes.io/ingress.class: alb</pre>
+      <p class="small">Most Ingresses in Epic's clusters still use the annotation, with AWS ALB or Traefik as the controller.</p>
     </div>
   </div>
 </section>
 
-<section class="slide break" data-time="10:20" data-kind="break">
-  <h2>Break</h2>
-  <p class="lead">Back at 10:35.</p>
+<section class="slide" data-time="09:35" data-kind="talk">
+  <h2>Controllers differ in the annotations</h2>
+  <div class="cols">
+    <pre>annotations:
+  alb.ingress.kubernetes.io/scheme: internal
+  alb.ingress.kubernetes.io/target-type: ip
+  alb.ingress.kubernetes.io/healthcheck-path: /readyz
+  alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:…</pre>
+    <ul class="points">
+      <li>The Ingress spec only covers hosts, paths and TLS.</li>
+      <li>Everything else (health checks, certificates, auth) is an annotation that one controller understands.</li>
+      <li>That is why Ingress files look different in every company.</li>
+    </ul>
+  </div>
 </section>
 
-<section class="slide section" data-time="10:35" data-kind="talk">
+<section class="slide" data-time="09:35" data-kind="talk">
+  <h2>.NET behind a proxy</h2>
+  <div class="cols">
+    <div class="stack">
+      <p>Behind Traefik or an ALB, ASP.NET Core sees the proxy's address and <code>http</code>, even when the browser used HTTPS.</p>
+      <p>Redirects, generated links and OAuth callbacks then point to the wrong place.</p>
+    </div>
+    <pre>env:
+  - name: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+    value: "true"</pre>
+  </div>
+  <p class="small">This makes ASP.NET Core read the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers the proxy adds.</p>
+</section>
+
+<section class="slide section" data-time="09:45" data-kind="talk">
   <div class="eyebrow">20 minutes · talk</div>
   <h2>Configuration</h2>
 </section>
 
-<section class="slide" data-time="10:35" data-kind="talk">
+<section class="slide" data-time="09:45" data-kind="talk">
   <h2>One image, every environment</h2>
   <div class="cols">
     <ul class="points">
@@ -194,7 +255,7 @@ kubectl delete pod web-848b…-cg4bh
   </div>
 </section>
 
-<section class="slide" data-time="10:35" data-kind="talk">
+<section class="slide" data-time="09:45" data-kind="talk">
   <h2>How it reaches .NET configuration</h2>
   <div class="cols wide-right">
     <div class="diagram col">
@@ -213,7 +274,7 @@ kubectl delete pod web-848b…-cg4bh
   <aside class="notes"><ul><li>This is the training app's actual provider order, see app/Program.cs. In a default ASP.NET Core app you add the /config and /secrets providers yourself.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="10:35" data-kind="talk">
+<section class="slide" data-time="09:45" data-kind="talk">
   <h2>Mounting a ConfigMap and a Secret</h2>
   <div class="cols wide-left">
     <pre>    spec:
@@ -242,7 +303,7 @@ kubectl delete pod web-848b…-cg4bh
   </div>
 </section>
 
-<section class="slide" data-time="10:35" data-kind="talk">
+<section class="slide" data-time="09:45" data-kind="talk">
   <h2>Two things that surprise .NET developers</h2>
   <div class="cols">
     <div class="stack">
@@ -258,34 +319,12 @@ kubectl delete pod web-848b…-cg4bh
   </div>
 </section>
 
-<section class="slide lab" data-time="10:55" data-kind="lab">
-  <div class="eyebrow">Lab 4 · 45 minutes</div>
-  <h2>ConfigMaps and Secrets</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Set the greeting with an env var, then from a mounted <code>appsettings.json</code>.</li>
-      <li>See which one wins, and why.</li>
-      <li>Mount an API key from a Secret at <code>/secrets</code>.</li>
-      <li>Edit the ConfigMap. The file changes, the app does not notice.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/04-config/README.md</div>
-      <p class="small">Check the result at <code>http://localhost:30080/api/info</code>.</p>
-    </div>
-  </div>
+<section class="slide section" data-time="10:05" data-kind="talk">
+  <div class="eyebrow">15 minutes · talk</div>
+  <h2>Probes</h2>
 </section>
 
-<section class="slide break" data-time="11:40" data-kind="break">
-  <h2>Break</h2>
-  <p class="lead">Back at 11:50.</p>
-</section>
-
-<section class="slide section" data-time="11:50" data-kind="talk">
-  <div class="eyebrow">20 minutes · talk</div>
-  <h2>Probes and resources</h2>
-</section>
-
-<section class="slide" data-time="11:50" data-kind="talk">
+<section class="slide" data-time="10:05" data-kind="talk">
   <h2>Three probes, three different reactions</h2>
   <table>
     <tr><th>Probe</th><th>Question</th><th>When it fails</th></tr>
@@ -299,7 +338,7 @@ kubectl delete pod web-848b…-cg4bh
   </ul>
 </section>
 
-<section class="slide" data-time="11:50" data-kind="talk">
+<section class="slide" data-time="10:05" data-kind="talk">
   <h2>.NET health checks map onto probes</h2>
   <div class="cols wide-left">
     <pre>builder.Services.AddHealthChecks()
@@ -321,7 +360,7 @@ readinessProbe:
   </div>
 </section>
 
-<section class="slide" data-time="11:50" data-kind="talk">
+<section class="slide" data-time="10:05" data-kind="talk">
   <h2>The same rollout, with probes</h2>
   <div class="figure">
     <div><div class="n bad">9</div><div class="cap">failed of 339 requests, v1 to v2, no probes (Monday)</div></div>
@@ -331,72 +370,99 @@ readinessProbe:
     <li>The readiness probe keeps traffic away until the app listens.</li>
     <li>The <code>preStop</code> sleep keeps an old pod serving while the Service drops it from its endpoints.</li>
   </ul>
-  <aside class="notes"><ul><li>Both numbers measured on kind with the training app. The preStop pause covers the gap between the pod being marked for deletion and every node updating its routing.</li><li>Lab 5's extra repeats v3-broken with probes: the rollout stops at one crashing pod and the old pods keep serving.</li></ul></aside>
+  <aside class="notes"><ul><li>Both numbers measured on kind with the training app. The preStop pause covers the gap between the pod being marked for deletion and every node updating its routing.</li><li>Lab 6's extra repeats v3-broken with probes: the rollout stops at one crashing pod and the old pods keep serving.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="11:50" data-kind="talk">
-  <h2>Requests and limits</h2>
+<section class="slide break" data-time="10:20" data-kind="break">
+  <h2>Break</h2>
+  <p class="lead">Back at 10:35 for the lab block.</p>
+</section>
+
+<section class="slide lab" data-time="10:35" data-kind="lab">
+  <div class="eyebrow">Lab block · 135 minutes</div>
+  <h2>Labs 3 to 6</h2>
   <div class="cols">
-    <pre>resources:
-  requests:          <span class="c"># reserved, used for scheduling</span>
-    cpu: 100m        <span class="c"># 0.1 of a core</span>
-    memory: 128Mi
-  limits:            <span class="c"># hard ceiling</span>
-    cpu: "1"
-    memory: 256Mi</pre>
-    <table>
-      <tr><th>Over the limit</th><th>What happens</th></tr>
-      <tr><td>CPU</td><td>throttled, gets slower</td></tr>
-      <tr><td>memory</td><td>killed: <span class="pill bad">OOMKilled</span> exit 137</td></tr>
-      <tr><td>request too big for any node</td><td><span class="pill warn">Pending</span> forever</td></tr>
+    <table class="kubectl">
+      <tr><th>Start by</th><th>Lab</th></tr>
+      <tr><td>10:35</td><td>Lab 3: Services</td></tr>
+      <tr><td>11:15</td><td>Lab 4: Ingress</td></tr>
+      <tr><td>11:40</td><td>Lab 5: ConfigMaps and Secrets</td></tr>
+      <tr><td>12:25</td><td>Lab 6: Probes</td></tr>
+      <tr><td>12:50</td><td>Recap</td></tr>
     </table>
+    <ul class="points">
+      <li>Still on a lab at the next start time? Apply its solution from <code>solutions/</code> and move on.</li>
+      <li>Finished early? Each README ends with extras.</li>
+      <li>Take a break whenever you want.</li>
+    </ul>
   </div>
+  <aside class="notes"><ul><li>Walk the room. At each start time, check who is behind and point them at the catch-up command at the top of the next README.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="11:50" data-kind="talk">
-  <h2>.NET reads the limits</h2>
+<section class="slide lab" data-time="10:35" data-kind="lab">
+  <div class="eyebrow">Lab 3 · 40 minutes · from 10:35</div>
+  <h2>Services</h2>
   <div class="cols">
-    <table>
-      <tr><th>Container setting</th><th>.NET sees</th></tr>
-      <tr><td>CPU limit 1</td><td><code>Environment.ProcessorCount</code> = 1</td></tr>
-      <tr><td>memory limit 128Mi</td><td>GC heap limit 96 MB (75%)</td></tr>
-    </table>
+    <ul class="points">
+      <li>Build a ClusterIP Service and call it by name from a throwaway pod.</li>
+      <li>Break the selector and watch the endpoints disappear.</li>
+      <li>Change it to NodePort 30080 and open it in the Windows browser.</li>
+      <li>Watch the pod name change with a curl loop.</li>
+    </ul>
     <div class="stack">
-      <p><code>/admin/leak?managed=true</code> fills <code>byte[]</code> until .NET throws <code>OutOfMemoryException</code>. The container survives.</p>
-      <p><code>/admin/leak</code> fills native memory, which the GC does not limit. Linux kills the container: <span class="pill bad">OOMKilled</span></p>
-      <p class="small">Thread pool and Server GC size themselves from ProcessorCount, so a CPU limit changes how your app behaves under load.</p>
+      <div class="path">labs/03-services/README.md</div>
+      <p class="small">Starts by deleting the ready-made Service from Lab 2.</p>
     </div>
   </div>
-  <aside class="notes"><ul><li>Numbers from /api/info on kind with a 128Mi limit and a CPU limit of 1.</li><li>Native leaks in real apps: unmanaged libraries, image processing, large pinned buffers.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="11:50" data-kind="talk">
-  <h2>Pod states you will meet</h2>
-  <table>
-    <tr><th>Status</th><th>Usually means</th><th>Look at</th></tr>
-    <tr><td><span class="pill warn">Pending</span></td><td>no node fits the requests</td><td><code>describe</code> events</td></tr>
-    <tr><td><span class="pill bad">ImagePullBackOff</span></td><td>wrong image name or tag</td><td><code>describe</code> events</td></tr>
-    <tr><td><span class="pill bad">CreateContainerConfigError</span></td><td>missing ConfigMap or Secret key</td><td><code>describe</code> events</td></tr>
-    <tr><td><span class="pill bad">CrashLoopBackOff</span></td><td>the app exits on start</td><td><code>logs --previous</code></td></tr>
-    <tr><td><span class="pill bad">OOMKilled</span></td><td>over the memory limit</td><td><code>describe</code>, Last State</td></tr>
-    <tr><td><span class="pill">Running 0/1</span></td><td>readiness probe failing</td><td><code>describe</code> events, the probe path</td></tr>
-  </table>
-  <aside class="notes"><ul><li>Tomorrow's Lab 7 is built from exactly these. Photographing this slide is allowed.</li></ul></aside>
+<section class="slide lab" data-time="11:15" data-kind="lab">
+  <div class="eyebrow">Lab 4 · 25 minutes · from 11:15</div>
+  <h2>Ingress</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Install Traefik with <code>kubectl apply -f setup/traefik.yaml</code>.</li>
+      <li>Route <code>app.localhost</code> to the app and <code>v2.localhost</code> to v2.</li>
+      <li>Open both at <code>:30081</code> in the Windows browser.</li>
+      <li>Compare <code>ingressClassName</code> with the old annotation.</li>
+      <li>Read a real ALB Ingress and its annotations.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/04-ingress/README.md</div>
+    </div>
+  </div>
 </section>
 
-<section class="slide lab" data-time="12:10" data-kind="lab">
-  <div class="eyebrow">Lab 5 · 40 minutes</div>
-  <h2>Probes and limits</h2>
+<section class="slide lab" data-time="11:40" data-kind="lab">
+  <div class="eyebrow">Lab 5 · 45 minutes · from 11:40</div>
+  <h2>ConfigMaps and Secrets</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Set the greeting with an env var, then from a mounted <code>appsettings.json</code>.</li>
+      <li>See which one wins, and why.</li>
+      <li>Mount an API key from a Secret at <code>/secrets</code>.</li>
+      <li>Edit the ConfigMap. The file changes, the app does not notice.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/05-config/README.md</div>
+      <p class="small">Check the result at <code>http://localhost:30080/api/info</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide lab" data-time="12:25" data-kind="lab">
+  <div class="eyebrow">Lab 6 · 25 minutes · from 12:25</div>
+  <h2>Probes</h2>
   <div class="cols">
     <ul class="points">
       <li>Add readiness and liveness probes.</li>
       <li><code>/admin/unready</code>: the pod leaves the Service but keeps running.</li>
       <li><code>/admin/hang</code>: the liveness probe restarts it.</li>
+      <li><code>/admin/crash</code>: the container restarts and the count goes up.</li>
       <li>Repeat Monday's rollout. Count the failures again.</li>
-      <li>Set a 128Mi limit and hit <code>/admin/leak</code>.</li>
     </ul>
     <div class="stack">
-      <div class="path">labs/05-probes-limits/README.md</div>
+      <div class="path">labs/06-probes/README.md</div>
     </div>
   </div>
 </section>
@@ -406,17 +472,18 @@ readinessProbe:
   <div class="cols">
     <ul class="points">
       <li>Give pods a stable name and reach them from the browser.</li>
+      <li>Route traffic by hostname through an Ingress.</li>
       <li>Configure the app from ConfigMaps and Secrets without rebuilding it.</li>
       <li>Release without dropping requests.</li>
-      <li>Read OOMKilled, Pending and CrashLoopBackOff.</li>
     </ul>
     <div class="stack">
       <h3>Tomorrow, 09:00 to 15:00</h3>
-      <p>Postgres and storage, a debugging lab, autoscaling, Helm, Ingress, and a capstone in pairs.</p>
-      <p class="small">Bring lunch plans: tomorrow is the long day, with a 30-minute lunch at 11:55.</p>
+      <p>Requests, limits and autoscaling, a debugging lab, Postgres and storage, Helm, and a capstone in pairs.</p>
+      <p class="small">Bring lunch plans: tomorrow is the long day, with a 30-minute lunch at 11:30.</p>
     </div>
   </div>
 </section>
+
 
 </div></div>
 <script src="deck.js"></script>

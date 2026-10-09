@@ -24,9 +24,8 @@
     <tr><td>09:20</td><td>Docker refresher</td><td class="t-talk">talk + demo</td><td>25m</td></tr>
     <tr><td>09:45</td><td>What Kubernetes is</td><td class="t-talk">talk + demo</td><td>40m</td></tr>
     <tr><td>10:25</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
-    <tr><td>10:40</td><td>Lab 1: kubectl, Pods, namespaces</td><td class="t-lab">lab</td><td>50m</td></tr>
-    <tr><td>11:30</td><td>Labels, ReplicaSets, Deployments</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>11:50</td><td>Lab 2: Deployments and rollouts</td><td class="t-lab">lab</td><td>55m</td></tr>
+    <tr><td>10:40</td><td>Labels, ReplicaSets, Deployments</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>11:00</td><td>Lab block: Labs 1 and 2</td><td class="t-lab">lab</td><td>105m</td></tr>
     <tr><td>12:45</td><td>Recap and questions</td><td class="t-talk">talk</td><td>15m</td></tr>
   </table>
 </section>
@@ -36,9 +35,10 @@
   <div class="cols">
     <ul class="points">
       <li>About a quarter talk, three quarters hands-on.</li>
+      <li>Talks come first. Then one long lab block, where you work through the labs at your own pace.</li>
       <li>Every lab is a README in <code>labs/</code>. It ends with "Check yourself" commands, so you know when you are done.</li>
       <li>Finished early? Each lab has extras. Do those instead of waiting.</li>
-      <li>Fell behind? Apply the previous lab's solution and carry on.</li>
+      <li>Still on a lab at its checkpoint time? Apply its solution and start the next one.</li>
     </ul>
     <div class="stack">
       <pre class="term"><span class="c"># catch up to the end of Lab 2</span>
@@ -335,7 +335,7 @@ kubectl delete pod demo-7c9f…-x2k4p
 <span class="ok">demo-7c9f…-q8m2z   1/1   Running</span></pre>
     <div class="stack">
       <p>You deleted a pod. The Deployment's controller saw 2 instead of 3 and made a new one, with a new name.</p>
-      <p class="small">This is the answer to "who restarts it in production?". After the break you start with bare Pods, which nobody restarts.</p>
+      <p class="small">This is the answer to "who restarts it in production?". After the break, Deployments. Then in Lab 1 you start with bare Pods, which nobody restarts.</p>
     </div>
   </div>
   <aside class="notes"><ul><li>Delete the demo deployment afterwards: kubectl delete deployment demo.</li></ul></aside>
@@ -343,33 +343,15 @@ kubectl delete pod demo-7c9f…-x2k4p
 
 <section class="slide break" data-time="10:25" data-kind="break">
   <h2>Break</h2>
-  <p class="lead">Back at 10:40 for Lab 1.</p>
+  <p class="lead">Back at 10:40.</p>
 </section>
 
-<section class="slide lab" data-time="10:40" data-kind="lab">
-  <div class="eyebrow">Lab 1 · 50 minutes</div>
-  <h2>kubectl, Pods and namespaces</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Find the control plane in <code>kube-system</code>.</li>
-      <li>Create the <code>training</code> namespace and make it your default.</li>
-      <li>Run the app as a Pod, read its logs, exec into it.</li>
-      <li>Open it in the Windows browser through <code>port-forward</code>.</li>
-      <li>Delete the Pod and see that nothing brings it back.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/01-pods/README.md</div>
-      <p class="small">Browser: <code>http://localhost:8080</code> while <code>kubectl port-forward pod/web 8080:8080</code> runs.</p>
-    </div>
-  </div>
-</section>
-
-<section class="slide section" data-time="11:30" data-kind="talk">
+<section class="slide section" data-time="10:40" data-kind="talk">
   <div class="eyebrow">20 minutes · talk</div>
   <h2>Labels, ReplicaSets, Deployments</h2>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>Labels and selectors</h2>
   <div class="cols">
     <div class="diagram col">
@@ -390,7 +372,7 @@ kubectl delete pod demo-7c9f…-x2k4p
   <aside class="notes"><ul><li>Demo if time: kubectl get pods --show-labels, then kubectl get pods -l app=web.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>Deployment, ReplicaSet, Pod</h2>
   <div class="cols wide-right">
     <div class="diagram col">
@@ -412,7 +394,7 @@ kubectl delete pod demo-7c9f…-x2k4p
   </div>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>A rolling update, step by step</h2>
   <table class="kubectl">
     <tr><th>Step</th><th>Old ReplicaSet (v1)</th><th>New ReplicaSet (v2)</th></tr>
@@ -426,7 +408,7 @@ kubectl delete pod demo-7c9f…-x2k4p
   <p class="small">Defaults: <code>maxSurge: 25%</code> rounds up to 1 extra pod, <code>maxUnavailable: 25%</code> rounds down to 0. With 3 replicas there are never fewer than 3 pods, and the old ReplicaSet stays around (scaled to 0) for rollback.</p>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>Kubernetes cannot see inside your app</h2>
   <div class="cols">
     <div class="stack">
@@ -438,10 +420,10 @@ kubectl delete pod demo-7c9f…-x2k4p
       <div><div class="n bad">9</div><div class="cap">failed requests out of 339 during a rollout from v1 to v2, no probes</div></div>
     </div>
   </div>
-  <aside class="notes"><ul><li>Measured on kind with a curl loop every 100 ms. They will see a similar number in Lab 2.</li><li>Tuesday's Lab 5 adds probes and gets 0 failures. Don't fix it today, let them feel it.</li></ul></aside>
+  <aside class="notes"><ul><li>Measured on kind with a curl loop every 100 ms. They will see a similar number in Lab 2.</li><li>Tuesday's Lab 6 adds probes and gets 0 failures. Don't fix it today, let them feel it.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>Rollout commands</h2>
   <div class="cols wide-left">
     <pre class="term">kubectl set image deployment/web \
@@ -459,7 +441,7 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
   </div>
 </section>
 
-<section class="slide" data-time="11:30" data-kind="talk">
+<section class="slide" data-time="10:40" data-kind="talk">
   <h2>.NET: stopping cleanly</h2>
   <div class="diagram">
     <div class="box">pod marked for deletion</div>
@@ -477,8 +459,45 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
   </ul>
 </section>
 
+<section class="slide lab" data-time="11:00" data-kind="lab">
+  <div class="eyebrow">Lab block · 105 minutes</div>
+  <h2>Labs 1 and 2</h2>
+  <div class="cols">
+    <table class="kubectl">
+      <tr><th>Start by</th><th>Lab</th></tr>
+      <tr><td>11:00</td><td>Lab 1: kubectl, Pods, namespaces</td></tr>
+      <tr><td>11:50</td><td>Lab 2: Deployments and rollouts</td></tr>
+      <tr><td>12:45</td><td>Recap</td></tr>
+    </table>
+    <ul class="points">
+      <li>Still on Lab 1 at 11:50? Skip its last steps and start Lab 2.</li>
+      <li>Finished early? Each README ends with extras.</li>
+      <li>Take a break whenever you want.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Walk the room. At 11:50 check who is still on Lab 1 and move them on.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="11:00" data-kind="lab">
+  <div class="eyebrow">Lab 1 · 50 minutes · from 11:00</div>
+  <h2>kubectl, Pods and namespaces</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Find the control plane in <code>kube-system</code>.</li>
+      <li>Create the <code>training</code> namespace and make it your default.</li>
+      <li>Run the app as a Pod, read its logs, exec into it.</li>
+      <li>Open it in the Windows browser through <code>port-forward</code>.</li>
+      <li>Delete the Pod and see that nothing brings it back.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/01-pods/README.md</div>
+      <p class="small">Browser: <code>http://localhost:8080</code> while <code>kubectl port-forward pod/web 8080:8080</code> runs.</p>
+    </div>
+  </div>
+</section>
+
 <section class="slide lab" data-time="11:50" data-kind="lab">
-  <div class="eyebrow">Lab 2 · 55 minutes</div>
+  <div class="eyebrow">Lab 2 · 55 minutes · from 11:50</div>
   <h2>Deployments and rollouts</h2>
   <div class="cols">
     <ul class="points">
@@ -505,11 +524,12 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
     </ul>
     <div class="stack">
       <h3>Tomorrow</h3>
-      <p>Services and DNS, configuration from ConfigMaps and Secrets, probes and resource limits. We start by recreating today's Deployment with <code>kubectl apply</code>.</p>
+      <p>Services and DNS, Ingress, configuration from ConfigMaps and Secrets, and probes. We start by recreating today's Deployment with <code>kubectl apply</code>.</p>
       <p class="small">If kubectl fails tomorrow after a reboot: <code>kind delete cluster --name training</code>, <code>setup/create-cluster.sh</code>, then apply <code>solutions/02-deployments/</code>.</p>
     </div>
   </div>
 </section>
+
 
 </div></div>
 <script src="deck.js"></script>

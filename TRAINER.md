@@ -31,7 +31,7 @@ nodes:
   - role: worker
 ```
 
-NodePort 30080 on the cluster becomes `http://localhost:30080` in the Windows browser (Lab 3). NodePort 30081 is the Traefik ingress controller installed on day 3, so every Ingress is reachable at `http://<name>.localhost:30081`; Chrome and Edge resolve `*.localhost` to 127.0.0.1 without editing the hosts file. Host ports keep the same number as the NodePort, so 8080 stays free for `kubectl port-forward` (the app listens on 8080, and that is the port everyone types first). WSL2 forwards `localhost` to Windows, so no WSL networking setup is needed.
+NodePort 30080 on the cluster becomes `http://localhost:30080` in the Windows browser (Lab 3). NodePort 30081 is the Traefik ingress controller installed on day 2 (Lab 4), so every Ingress is reachable at `http://<name>.localhost:30081`; Chrome and Edge resolve `*.localhost` to 127.0.0.1 without editing the hosts file. Host ports keep the same number as the NodePort, so 8080 stays free for `kubectl port-forward` (the app listens on 8080, and that is the port everyone types first). WSL2 forwards `localhost` to Windows, so no WSL networking setup is needed.
 
 ### Fallback for a single broken laptop
 
@@ -59,7 +59,7 @@ Build one small app that every exercise reuses, so time goes into Kubernetes and
 - `GET /work?ms=100` burns CPU on the request thread. A busybox loop calling it scaled the HPA from 2 to 6 pods in about 30 seconds.
 - Waits 3 seconds before listening, like a real app warming up, so a rollout without readiness probes visibly drops requests (9 of 339 in testing, 0 with probes and a preStop pause).
 - Reads `/config/appsettings.json` if mounted, `/secrets` as one file per key, and `ConnectionStrings__Default`, and writes a visit counter to Postgres (storage and capstone).
-- `migrate` as a command-line argument applies the EF Core migrations and exits, so the same image serves as the migration Job in Lab 6.
+- `migrate` as a command-line argument applies the EF Core migrations and exits, so the same image serves as the migration Job in Lab 9.
 - `v3-broken` throws on startup when `ConnectionStrings__Default` is missing (CrashLoopBackOff debugging).
 
 Dockerfile is a multi-stage build: `mcr.microsoft.com/dotnet/sdk:10.0` to publish, `mcr.microsoft.com/dotnet/aspnet:10.0` to run. Participants do not need the .NET SDK inside WSL, because the build happens in the SDK image.
@@ -74,13 +74,13 @@ These are the points where a .NET developer's assumptions meet Kubernetes. Each 
 |---|---|---|
 | Port and user | .NET 8+ images listen on 8080 (`ASPNETCORE_HTTP_PORTS`) and include a non-root `app` user (UID 1654) that the Dockerfile switches to. Port 80 in a manifest is the classic first bug | 1 |
 | Graceful shutdown | Kubernetes sends SIGTERM, the generic host stops accepting requests and drains within `HostOptions.ShutdownTimeout`. Keep it below `terminationGracePeriodSeconds` (30 s) | 2 |
-| Config mapping | Env var `Section__Key` maps to `Section:Key`. Env vars override `appsettings.json` because of provider order | 4 |
-| Config reload | `reloadOnChange: true` on a mounted ConfigMap misses updates, because Kubernetes swaps a symlink and `FileSystemWatcher` does not see it. Set `DOTNET_USE_POLLING_FILE_WATCHER=true` and show the difference | 4 (finished early) |
-| Health checks | Liveness must not include the database check, otherwise a Postgres outage restarts every app pod. Readiness can include it | 5 |
-| Memory and CPU limits | The GC reads the cgroup limit. `Environment.ProcessorCount` follows the CPU limit, which changes thread pool and Server GC sizing | 5 |
+| Config mapping | Env var `Section__Key` maps to `Section:Key`. Env vars override `appsettings.json` because of provider order | 5 |
+| Config reload | `reloadOnChange: true` on a mounted ConfigMap misses updates, because Kubernetes swaps a symlink and `FileSystemWatcher` does not see it. Set `DOTNET_USE_POLLING_FILE_WATCHER=true` and show the difference | 5 (finished early) |
+| Health checks | Liveness must not include the database check, otherwise a Postgres outage restarts every app pod. Readiness can include it | 6 |
+| Memory and CPU limits | The GC reads the cgroup limit. `Environment.ProcessorCount` follows the CPU limit, which changes thread pool and Server GC sizing | 7 |
 | Chiseled images | `aspnet:10.0-noble-chiseled` is much smaller but has no shell, so `kubectl exec -- sh` fails. Use `kubectl debug` with an ephemeral container instead | finished early |
-| Secrets | `Secret` values arrive as env vars or files. `AddKeyPerFile("/secrets")` reads a mounted Secret directory as configuration | 4 |
-| Behind an Ingress | The app sees the controller's address and `http` instead of the browser's host and scheme, which breaks redirects and generated links. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` makes ASP.NET Core read the `X-Forwarded-*` headers | 10 |
+| Secrets | `Secret` values arrive as env vars or files. `AddKeyPerFile("/secrets")` reads a mounted Secret directory as configuration | 5 |
+| Behind an Ingress | The app sees the controller's address and `http` instead of the browser's host and scheme, which breaks redirects and generated links. `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true` makes ASP.NET Core read the `X-Forwarded-*` headers | 4 |
 
 ## Timing rules
 
@@ -90,7 +90,18 @@ The first version packed 16 labs into 14 hours with 10-minute concept talks. Tha
 - A lab gets about twice the time it takes you to do it alone. Someone always has a typo in YAML indentation, and the group waits for that person or they fall behind.
 - Each lab has a "finished early?" section. Fast participants go deeper there instead of the agenda going wider for everyone.
 
-Topics cut from the main path and moved to "finished early?" extras: node drain and PodDisruptionBudget, RBAC, NetworkPolicy, CronJobs, chiseled images with `kubectl debug`, k9s. The Gateway API gets 5 minutes inside the Ingress lab.
+Topics cut from the main path and moved to "finished early?" extras: node drain and PodDisruptionBudget, RBAC, NetworkPolicy, CronJobs, chiseled images with `kubectl debug`, k9s. The Gateway API is not covered beyond a mention in the wrap-up.
+
+## Lab blocks
+
+Each day the talks come first and the labs follow in one long block: one block on Monday and Tuesday, two on Wednesday (one before lunch, one at the end of the day). Participants work through the labs in a block at their own pace and take the break inside a block when they want. You walk the room instead of pulling everyone back to the screen between labs.
+
+Two things keep a long block from drifting:
+
+- The lab slide for each block lists checkpoint times. Anyone still on the previous lab at a checkpoint applies its solution from `solutions/` and moves on, so nobody spends the whole block on the first lab and misses the later ones.
+- Talks can now be up to two hours before the lab that uses them, so every lab README starts with a short reminder of the concept and never assumes the participant remembers the talk.
+
+Lab numbers below are the new order. The folder renames are in the prep checklist.
 
 ## Day 1, Monday 09:00 to 13:00: from container to Deployment
 
@@ -100,52 +111,46 @@ Goal: everyone understands what Kubernetes adds on top of Docker, and has deploy
 |---|---|---|
 | 09:00 | Intro, expectations, everyone's cluster up (`kubectl get nodes` shows 3 nodes) | Setup, 20 min |
 | 09:20 | Docker refresher: image vs container, layers, tags, registries. You demo `docker run` of the training app with `-p` and `-e`, `logs`, `exec`, then `docker kill` and ask "who restarts this in production?" | Talk + demo, 25 min |
-| 09:45 | What Kubernetes is: desired state and the control loop, control plane and nodes, the API server as a database of objects. Demo: kill a pod and watch it come back | Talk + demo, 40 min |
+| 09:45 | What Kubernetes is: desired state and the control loop, control plane and nodes, the API server as a database of objects, namespaces. Demo: kill a pod and watch it come back | Talk + demo, 40 min |
 | 10:25 | Break | 15 min |
-| 10:40 | Lab 1: kubectl and Pods. `get`, `describe`, `explain`, `-o yaml`, `--dry-run=client -o yaml`. Namespaces: `kubectl get namespaces`, find the control plane from the architecture talk in `kube-system`, use `-n` and `-A`, create a namespace and switch to it with `kubectl config set-context --current --namespace`. Run the training image as a Pod, map the Docker commands from the refresher to their kubectl equivalents, open the app in the Windows browser with `kubectl port-forward pod/app 8080:8080` and `http://localhost:8080`, delete the Pod and see that nothing brings it back | Hands-on, 50 min |
-| 11:30 | Labels, selectors, ReplicaSet, Deployment, rolling updates | Talk, 20 min |
-| 11:50 | Lab 2: Deployments. Deploy `v1` with 3 replicas, delete a pod, scale, roll out `v2` while a curl loop runs and count the failed requests, roll out `v3-broken` and watch it replace every healthy pod (without a readiness probe Kubernetes cannot tell the new pods are broken), `rollout undo` (back to v2, the previous revision). Lab 5's extra repeats it with probes: the rollout stops at one crashing pod and 330 of 330 requests succeed | Hands-on, 55 min |
+| 10:40 | Labels, selectors, ReplicaSet, Deployment, rolling updates | Talk, 20 min |
+| 11:00 | Lab block. Lab 1, kubectl and Pods: `get`, `describe`, `explain`, `-o yaml`, `--dry-run=client -o yaml`, namespaces (find the control plane in `kube-system`, `-n` and `-A`, create a namespace and switch to it), run the training image as a Pod, map the Docker commands to kubectl, `kubectl port-forward pod/app 8080:8080`, delete the Pod and see that nothing brings it back. Lab 2, Deployments: `v1` with 3 replicas, delete a pod, scale, roll out `v2` while a curl loop counts failed requests, roll out `v3-broken` and watch it replace every healthy pod, `rollout undo`. Checkpoint: 11:50 start Lab 2 | Hands-on, 105 min |
 | 12:45 | Recap, questions | 15 min |
 
-## Day 2, Tuesday 09:00 to 13:00: services, config and health
+## Day 2, Tuesday 09:00 to 13:00: services, ingress, config and health
 
-Goal: the app is reachable, takes its configuration from the cluster, reports its health, and has resource limits.
+Goal: the app is reachable from the browser through a Service and an Ingress, takes its configuration from the cluster, and reports its health.
 
 | Time | Block | Type |
 |---|---|---|
-| 09:00 | Recap of Monday, questions, recreate yesterday's Deployment with `kubectl apply -f` | 20 min |
-| 09:20 | Services: ClusterIP, NodePort, cluster DNS, how a Service finds pods through labels | Talk, 20 min |
-| 09:40 | Lab 3: Services. ClusterIP Service, call it by DNS name from a throwaway pod, NodePort 30080 opened at `http://localhost:30080` in the Windows browser, then watch the pod name change with a `curl` loop (a browser keeps its connection open and often stays on one pod, because a Service balances connections, not requests) | Hands-on, 40 min |
+| 09:00 | Recap of Monday, questions, recreate yesterday's Deployment with `kubectl apply -f` | 15 min |
+| 09:15 | Services: ClusterIP, NodePort, cluster DNS, how a Service finds pods through labels | Talk, 20 min |
+| 09:35 | Ingress: how a request gets from the browser through the ingress controller to a Service, IngressClass, host and path rules | Talk, 10 min |
+| 09:45 | Configuration: ConfigMaps, Secrets, env vars vs mounted files, how this maps onto .NET configuration (`Section__Key`, provider order) | Talk, 20 min |
+| 10:05 | Probes: liveness vs readiness, how .NET health checks map onto them, why liveness must not check the database | Talk, 15 min |
 | 10:20 | Break | 15 min |
-| 10:35 | Configuration: ConfigMaps, Secrets, env vars vs mounted files, how this maps onto .NET configuration (`Section__Key`, provider order) | Talk, 20 min |
-| 10:55 | Lab 4: Config. `Greeting__Text` as an env var, `appsettings.json` mounted from a ConfigMap (env var wins over the file), an API key from a Secret mounted at `/secrets`. Edit the ConfigMap: the file in the pod changes but the app does not notice until `kubectl rollout restart`; the polling file watcher is a "finished early?" extra | Hands-on, 45 min |
-| 11:40 | Break | 10 min |
-| 11:50 | Probes and resources: liveness vs readiness, requests vs limits, what OOMKilled and Pending mean | Talk, 20 min |
-| 12:10 | Lab 5: Probes and limits. Add probes, hit `/admin/unready` and `/admin/hang`, repeat Monday's rollout with zero failed requests, set a 128Mi memory limit and hit `/admin/leak` | Hands-on, 40 min |
+| 10:35 | Lab block. Lab 3, Services: ClusterIP Service called by DNS name from a throwaway pod, NodePort 30080 at `http://localhost:30080`, a `curl` loop showing the pod name change. Lab 4, Ingress: install Traefik with `kubectl apply -f setup/traefik.yaml` (the Traefik Helm chart rendered with `helm template`, so nobody runs Helm before Wednesday), an Ingress that sends `app.localhost` to the app and `v2.localhost` to a second Deployment, both opened at `:30081`, `spec.ingressClassName` vs the older `kubernetes.io/ingress.class` annotation, one real ALB Ingress. Lab 5, Config: `Greeting__Text` as an env var, `appsettings.json` from a ConfigMap, an API key from a Secret at `/secrets`, edit the ConfigMap and see the app ignore it until `kubectl rollout restart`. Lab 6, Probes: add both probes, hit `/admin/unready`, `/admin/hang` and `/admin/crash`, repeat Monday's rollout with zero failed requests. Checkpoints: 11:15 Lab 4, 11:40 Lab 5, 12:25 Lab 6 | Hands-on, 135 min |
 | 12:50 | Recap, questions | 10 min |
 
-## Day 3, Wednesday 09:00 to 15:00: state, debugging, packaging, traffic
+Tuesday is now the densest day: four talks and four labs. The Gateway API is dropped from the Ingress lab; it stays on the "what we did not cover" slide.
 
-Goal: the app keeps data in Postgres, scales under load, participants can debug a broken deployment on their own, and they deploy the whole thing with Helm behind an Ingress.
+## Day 3, Wednesday 09:00 to 15:00: scaling, debugging, state and packaging
+
+Goal: the app has resource limits and scales under load, participants can debug a broken deployment on their own, the app keeps data in Postgres, and they deploy the whole thing with Helm.
 
 | Time | Block | Type |
 |---|---|---|
-| 09:00 | Recap of Tuesday, questions. Meanwhile everyone runs `kubectl apply -f setup/metrics-server.yaml` so metrics are ready by Lab 8 | 10 min |
-| 09:10 | Storage and databases: why the container filesystem is lost on restart, PersistentVolumeClaim, Jobs. In production the database is a managed service; StatefulSets exist for running clustered databases and are out of scope | Talk, 20 min |
-| 09:30 | Lab 6: Postgres as a Deployment (1 replica, `strategy: Recreate`) with a PVC, reached through a Service, password from a Secret. EF Core migration as a Job (app image with `migrate`), point the app at Postgres, delete the Postgres pod, confirm the data survived | Hands-on, 45 min |
-| 10:15 | Break | 15 min |
-| 10:30 | Lab 7: Debugging. Five broken manifests (wrong image tag, Service selector mismatch, wrong port, missing Secret key, `v3-broken` CrashLoopBackOff). Fix each one using only `get`, `describe`, `logs` and events, and say what the symptom was. Two extra scenarios for fast participants: readiness probe on the wrong path (Running but 0/1 Ready), and a CPU request no node can satisfy (Pending). Created with `labs/07-debugging/setup.sh`, one namespace per scenario | Hands-on, 40 min |
-| 11:10 | Autoscaling: what the HorizontalPodAutoscaler does (adds and removes pods of a Deployment), where the numbers come from (metrics-server), how it decides (CPU usage as a percentage of the pod's CPU *request*, so no request means no autoscaling), min and max replicas, why scale-down waits 5 minutes by default. What it does not do: add nodes (that is the cluster autoscaler) | Talk, 15 min |
-| 11:25 | Lab 8: HPA. metrics-server is already installed during the morning recap from the repo's pre-patched manifest (kind needs `--kubelet-insecure-tls`). Set CPU requests, create an HPA (min 2, max 6, 50% CPU), start a load pod that calls `/work` in a loop, watch `kubectl get hpa -w` and `kubectl top pods` as it scales up. Set `behavior.scaleDown.stabilizationWindowSeconds: 30` and watch it scale back down | Hands-on, 30 min |
-| 11:55 | Lunch | 30 min |
-| 12:25 | Helm: what a chart is, templates and values, `helm install`, `upgrade`, `rollback`, how one chart serves dev and prod | Talk, 10 min |
-| 12:35 | Lab 9: Helm. Install Traefik from its chart with the repo's values file (NodePort 30081) as the example of using someone else's chart, then turn their own manifests into a chart with `values-dev.yaml` and `values-prod.yaml` | Hands-on, 30 min |
-| 13:05 | Ingress: how a request gets from the browser through the ingress controller to a Service, IngressClass, host and path rules | Talk, 10 min |
-| 13:15 | Lab 10: Ingress. Write an Ingress that sends `app.localhost` to the app and `v2.localhost` to a second Deployment, open both at `:30081` in the Windows browser. Show both ways to pick the controller: `spec.ingressClassName` (recommended) and the older `kubernetes.io/ingress.class` annotation, which most Epic Ingresses still use. Show one real ALB Ingress to explain that cloud controllers are configured through annotations (`alb.ingress.kubernetes.io/*`). Then 5 minutes on the Gateway API: the same routing as an `HTTPRoute`, and why ingress-nginx, the controller every older tutorial uses, is retired | Hands-on, 25 min |
-| 13:40 | Capstone in pairs. Deploy app + Postgres to a fresh namespace from their chart, with config, Secret, probes, limits, an HPA and an Ingress at `http://capstone-<pair>.localhost:30081`. Done when `capstone/check.sh` passes. Pairs that finish pick an extra (drain + PDB, RBAC) | Hands-on, 60 min |
-| 14:40 | What they did not cover and where to go next (Gateway API in depth, RBAC, StatefulSets, GitOps, managed clusters). Feedback | 20 min |
+| 09:00 | Recap of Tuesday, questions. Meanwhile everyone runs `kubectl apply -f setup/metrics-server.yaml` so metrics are ready for Lab 7 | 10 min |
+| 09:10 | Requests and limits: what the scheduler does with requests, what happens at a limit (CPU throttled, memory OOMKilled), what Pending means, how the .NET GC and `Environment.ProcessorCount` read the limits | Talk, 15 min |
+| 09:25 | Autoscaling: what the HorizontalPodAutoscaler does, where the numbers come from (metrics-server), CPU usage as a percentage of the pod's CPU *request*, min and max replicas, the 5-minute scale-down wait. What it does not do: add nodes (that is the cluster autoscaler) | Talk, 15 min |
+| 09:40 | Lab block. Lab 7, Limits and HPA: set requests and a 128Mi memory limit, hit `/admin/leak` and see OOMKilled, then `/admin/leak?managed=true` and see the container survive. Create an HPA (min 2, max 6, 50% CPU), start a load pod calling `/work`, watch `kubectl get hpa -w` and `kubectl top pods`, set `stabilizationWindowSeconds: 30` and watch it scale down. Lab 8, Debugging: five broken manifests (wrong image tag, Service selector mismatch, wrong port, missing Secret key, `v3-broken` CrashLoopBackOff) fixed using only `get`, `describe`, `logs` and events, plus two extras (readiness probe on the wrong path, a CPU request no node can satisfy). Checkpoint: 10:30 start Lab 8 | Hands-on, 110 min |
+| 11:30 | Lunch | 30 min |
+| 12:00 | Storage and databases: why the container filesystem is lost on restart, PersistentVolumeClaim, Jobs. In production the database is a managed service; StatefulSets exist for running clustered databases and are out of scope | Talk, 20 min |
+| 12:20 | Helm: what a chart is, templates and values, `helm install`, `upgrade`, `rollback`, how one chart serves dev and prod. Point out that Tuesday's `setup/traefik.yaml` is a rendered chart | Talk, 10 min |
+| 12:30 | Lab block. Lab 9, Database: Postgres as a Deployment (1 replica, `strategy: Recreate`) with a PVC, password from a Secret, EF Core migration as a Job, point the app at Postgres, delete the Postgres pod and confirm the data survived. Lab 10, Helm: render the Traefik chart with `helm template` and compare it with `setup/traefik.yaml`, then turn their own manifests into a chart with `values-dev.yaml` and `values-prod.yaml`. Capstone in pairs: deploy app and Postgres to a fresh namespace from their chart, with config, Secret, probes, limits, an HPA and an Ingress at `http://capstone-<pair>.localhost:30081`, done when `capstone/check.sh` passes. Checkpoints: 13:15 Lab 10, 13:45 capstone | Hands-on, 135 min |
+| 14:45 | What they did not cover and where to go next (Gateway API, RBAC, StatefulSets, GitOps, managed clusters). Feedback | 15 min |
 
-To make room for Ingress and a separate HPA talk, the recap, debugging lab and Helm lab each lost 5 minutes, the capstone went from 75 to 60 minutes, and the wrap-up from 30 to 20. The afternoon has no scheduled break; the capstone is self-paced, so pairs take one when they want.
+Lunch moves 25 minutes earlier than before, because the morning block holds only two labs. The wrap-up is 5 minutes shorter to give the afternoon block the full 135 minutes it needs.
 
 ## Repo layout
 
@@ -154,10 +159,10 @@ The repo is at `~/Projects/k8s-training` (to be published as `github.com/amirilo
 ```
 k8s-training/
   SETUP.md      participant setup guide (copy of participant-setup.md)
-  setup/        kind.yaml, preflight.sh, create-cluster.sh, metrics-server.yaml, traefik-values.yaml
+  setup/        kind.yaml, preflight.sh, create-cluster.sh, metrics-server.yaml, traefik.yaml (rendered by render-traefik.sh from traefik-values.yaml)
   app/          ASP.NET Core training app + Dockerfile + README with all endpoints
-  labs/NN-.../  README.md per lab; labs/07-debugging has setup.sh, cleanup.sh and broken/1..7.yaml
-  solutions/    end state of each lab; 09-helm/web is the full chart; 07-debugging explains each fault
+  labs/NN-.../  README.md per lab; labs/08-debugging has setup.sh, cleanup.sh and broken/1..7.yaml
+  solutions/    end state of each lab; 10-helm/web is the full chart; 08-debugging explains each fault
   capstone/     README.md and check.sh (15 checks, run as check.sh <namespace> <host>)
 ```
 
@@ -175,3 +180,9 @@ Every lab ends with a `check yourself` block of commands with expected output, s
 - [ ] Write labs 6 to 10 (including a pre-patched metrics-server manifest and a Traefik values file with NodePort 30081), the broken manifests, capstone checklist and `check.sh`. Friday 2026-10-09
 - [ ] Dry-run day 1 end to end on the Windows machine with a timer. Weekend
 - [ ] Short slide deck: architecture diagram, one slide per talk block. Weekend
+- [ ] Reorder the labs for the lab-block schedule. Rename folders in `labs/` and `solutions/`: `10-ingress` to `04-ingress`, `04-config` to `05-config`, `06-database` to `09-database`, `07-debugging` to `08-debugging`, `09-helm` to `10-helm`. Split `05-probes-limits`: steps 1 to 4 and 7 become `06-probes`, steps 5 and 6 (requests, limits, `/admin/leak`) move into `07-limits-hpa` together with the current `08-hpa`
+- [ ] Fix every "Before you start" and catch-up command for the new order. The Ingress and HPA labs currently catch up from `solutions/06-database/`, and the Helm lab copies from `solutions/05-probes-limits/`
+- [x] Render Traefik to plain manifests: `setup/traefik.yaml`, regenerated by `setup/render-traefik.sh`. Tested on kind 2026-10-08: both hostnames and the `kubernetes.io/ingress.class` annotation route through NodePort 30081
+- [ ] Ingress lab step 1 becomes `kubectl apply -f setup/traefik.yaml`. Helm lab Part A renders the Traefik chart with `helm template` and compares it with that file instead of installing it. Remove the Gateway API step from the Ingress lab and delete `setup/enable-gateway-api.sh`, which runs `helm upgrade` on a release that no longer exists
+- [x] Rebuild the slides for the lab-block schedule. Slide paths already use the new lab folder names. 2026-10-09
+- [x] Update AGENDA.md, the lab table in README.md and the lab numbers in capstone/README.md. Links use the new folder names. 2026-10-09

@@ -11,8 +11,8 @@
 
 <section class="slide cover">
   <div class="meta">Kubernetes for .NET developers · Day 3 of 3 · Wednesday 14 October</div>
-  <h1>State, scale<br>and shipping</h1>
-  <p class="lead">Postgres and storage, debugging, autoscaling, Helm, Ingress, and a capstone that puts it all together.</p>
+  <h1>Scale, state<br>and shipping</h1>
+  <p class="lead">Requests and limits, autoscaling, debugging, Postgres and storage, Helm, and a capstone that puts it all together.</p>
 </section>
 
 <section class="slide" data-time="09:00">
@@ -20,25 +20,22 @@
   <table class="kubectl">
     <tr><th>Time</th><th>Name</th><th>Type</th><th>Duration</th></tr>
     <tr><td>09:00</td><td>Recap, install metrics-server</td><td class="t-talk">talk</td><td>10m</td></tr>
-    <tr><td>09:10</td><td>Storage and databases</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>09:30</td><td>Lab 6: Postgres and a migration Job</td><td class="t-lab">lab</td><td>45m</td></tr>
-    <tr><td>10:15</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
-    <tr><td>10:30</td><td>Lab 7: Debugging</td><td class="t-lab">lab</td><td>40m</td></tr>
-    <tr><td>11:10</td><td>Autoscaling</td><td class="t-talk">talk</td><td>15m</td></tr>
-    <tr><td>11:25</td><td>Lab 8: HPA</td><td class="t-lab">lab</td><td>30m</td></tr>
-    <tr><td>11:55</td><td>Lunch</td><td class="t-break">break</td><td>30m</td></tr>
-    <tr><td>12:25</td><td>Helm, then Lab 9</td><td class="t-lab">talk + lab</td><td>40m</td></tr>
-    <tr><td>13:05</td><td>Ingress, then Lab 10</td><td class="t-lab">talk + lab</td><td>35m</td></tr>
-    <tr><td>13:40</td><td>Capstone in pairs</td><td class="t-lab">lab</td><td>60m</td></tr>
-    <tr><td>14:40</td><td>What next, feedback</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>09:10</td><td>Requests and limits</td><td class="t-talk">talk</td><td>15m</td></tr>
+    <tr><td>09:25</td><td>Autoscaling</td><td class="t-talk">talk</td><td>15m</td></tr>
+    <tr><td>09:40</td><td>Lab block: Labs 7 and 8</td><td class="t-lab">lab</td><td>110m</td></tr>
+    <tr><td>11:30</td><td>Lunch</td><td class="t-break">break</td><td>30m</td></tr>
+    <tr><td>12:00</td><td>Storage and databases</td><td class="t-talk">talk</td><td>20m</td></tr>
+    <tr><td>12:20</td><td>Helm</td><td class="t-talk">talk</td><td>10m</td></tr>
+    <tr><td>12:30</td><td>Lab block: Labs 9 and 10, capstone</td><td class="t-lab">lab</td><td>135m</td></tr>
+    <tr><td>14:45</td><td>What next, feedback</td><td class="t-talk">talk</td><td>15m</td></tr>
   </table>
 </section>
 
 <section class="slide" data-time="09:00">
-  <h2>Start this now, we need it at 11:25</h2>
+  <h2>Start this now, Lab 7 needs it</h2>
   <div class="cols wide-left">
     <pre class="term">kubectl apply -f setup/metrics-server.yaml
-kubectl apply -f solutions/05-probes-limits/
+kubectl apply -f solutions/06-probes/
 
 <span class="c"># in a minute or two</span>
 kubectl top nodes</pre>
@@ -47,122 +44,168 @@ kubectl top nodes</pre>
       <li>Our copy adds one flag, <code>--kubelet-insecure-tls</code>, because kind's nodes use self-signed certificates.</li>
     </ul>
   </div>
-  <aside class="notes"><ul><li>Recap questions while it starts: what does readiness do on failure, what does liveness do; what is OOMKilled; why did the ConfigMap edit not reach the app.</li></ul></aside>
+  <aside class="notes"><ul><li>Recap questions while it starts: what does readiness do on failure, what does liveness do; what does an Ingress need to work; why did the ConfigMap edit not reach the app.</li></ul></aside>
 </section>
 
 <section class="slide section" data-time="09:10" data-kind="talk">
-  <div class="eyebrow">20 minutes · talk</div>
-  <h2>Storage and databases</h2>
+  <div class="eyebrow">15 minutes · talk</div>
+  <h2>Requests and limits</h2>
 </section>
 
 <section class="slide" data-time="09:10" data-kind="talk">
-  <h2>A container's files die with it</h2>
+  <h2>Requests and limits</h2>
   <div class="cols">
-    <ul class="points">
-      <li>The writable layer from Monday is deleted with the pod. A restarted Postgres would start empty.</li>
-      <li>A volume is a folder mounted into the container that lives outside it.</li>
-      <li>You have used two kinds already: <code>configMap</code> and <code>secret</code>.</li>
-    </ul>
+    <pre>resources:
+  requests:          <span class="c"># reserved, used for scheduling</span>
+    cpu: 100m        <span class="c"># 0.1 of a core</span>
+    memory: 128Mi
+  limits:            <span class="c"># hard ceiling</span>
+    cpu: "1"
+    memory: 256Mi</pre>
     <table>
-      <tr><th>Volume</th><th>Lives as long as</th></tr>
-      <tr><td><code>emptyDir</code></td><td>the pod</td></tr>
-      <tr><td><code>configMap</code>, <code>secret</code></td><td>the object</td></tr>
-      <tr><td><code>persistentVolumeClaim</code></td><td>until you delete the claim</td></tr>
+      <tr><th>Over the limit</th><th>What happens</th></tr>
+      <tr><td>CPU</td><td>throttled, gets slower</td></tr>
+      <tr><td>memory</td><td>killed: <span class="pill bad">OOMKilled</span> exit 137</td></tr>
+      <tr><td>request too big for any node</td><td><span class="pill warn">Pending</span> forever</td></tr>
     </table>
   </div>
 </section>
 
 <section class="slide" data-time="09:10" data-kind="talk">
-  <h2>Asking for disk</h2>
+  <h2>.NET reads the limits</h2>
+  <div class="cols">
+    <table>
+      <tr><th>Container setting</th><th>.NET sees</th></tr>
+      <tr><td>CPU limit 1</td><td><code>Environment.ProcessorCount</code> = 1</td></tr>
+      <tr><td>memory limit 128Mi</td><td>GC heap limit 96 MB (75%)</td></tr>
+    </table>
+    <div class="stack">
+      <p><code>/admin/leak?managed=true</code> fills <code>byte[]</code> until .NET throws <code>OutOfMemoryException</code>. The container survives.</p>
+      <p><code>/admin/leak</code> fills native memory, which the GC does not limit. Linux kills the container: <span class="pill bad">OOMKilled</span></p>
+      <p class="small">Thread pool and Server GC size themselves from ProcessorCount, so a CPU limit changes how your app behaves under load.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Numbers from /api/info on kind with a 128Mi limit and a CPU limit of 1.</li><li>Native leaks in real apps: unmanaged libraries, image processing, large pinned buffers.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:10" data-kind="talk">
+  <h2>Pod states you will meet</h2>
+  <table>
+    <tr><th>Status</th><th>Usually means</th><th>Look at</th></tr>
+    <tr><td><span class="pill warn">Pending</span></td><td>no node fits the requests</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">ImagePullBackOff</span></td><td>wrong image name or tag</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">CreateContainerConfigError</span></td><td>missing ConfigMap or Secret key</td><td><code>describe</code> events</td></tr>
+    <tr><td><span class="pill bad">CrashLoopBackOff</span></td><td>the app exits on start</td><td><code>logs --previous</code></td></tr>
+    <tr><td><span class="pill bad">OOMKilled</span></td><td>over the memory limit</td><td><code>describe</code>, Last State</td></tr>
+    <tr><td><span class="pill">Running 0/1</span></td><td>readiness probe failing</td><td><code>describe</code> events, the probe path</td></tr>
+  </table>
+  <aside class="notes"><ul><li>Lab 8 this morning is built from exactly these. Photographing this slide is allowed.</li></ul></aside>
+</section>
+
+<section class="slide section" data-time="09:25" data-kind="talk">
+  <div class="eyebrow">15 minutes · talk</div>
+  <h2>Autoscaling</h2>
+</section>
+
+<section class="slide" data-time="09:25" data-kind="talk">
+  <h2>The HorizontalPodAutoscaler</h2>
   <div class="diagram">
-    <div class="box accent">PersistentVolumeClaim<small>"1Gi, ReadWriteOnce"</small></div>
+    <div class="box">kubelet<small>measures pods</small></div>
     <div class="arrow">→</div>
-    <div class="box">StorageClass standard<small>knows how to make disks</small></div>
+    <div class="box">metrics-server<small>kubectl top</small></div>
     <div class="arrow">→</div>
-    <div class="box">PersistentVolume<small>the actual disk</small></div>
+    <div class="box accent">HPA<small>every 15 s</small></div>
+    <div class="arrow">→</div>
+    <div class="box">Deployment<small>replicas: 2 … 6</small></div>
   </div>
+  <ul class="points">
+    <li>The HPA only changes one number: the Deployment's <code>replicas</code>.</li>
+    <li>It adds pods, not nodes. When nodes are full, new pods stay Pending. The cluster autoscaler adds nodes, and that is a platform job.</li>
+  </ul>
+</section>
+
+<section class="slide" data-time="09:25" data-kind="talk">
+  <h2>How it decides</h2>
   <div class="cols">
-    <pre>apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: postgres-data
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 1Gi</pre>
+    <div class="stack">
+      <pre>utilization = CPU used ÷ CPU <span class="k">request</span>
+
+desired = ceil( current × utilization ÷ target )</pre>
+      <p>3 pods at 150% with a 50% target: 3 × 150 ÷ 50 = <strong>9</strong>, capped at <code>maxReplicas: 6</code>.</p>
+    </div>
     <ul class="points">
-      <li>You ask for a size. The StorageClass creates the disk.</li>
-      <li>On kind it is a folder on a node. On AWS the same YAML gets an EBS volume.</li>
-      <li>ReadWriteOnce: one node at a time.</li>
+      <li>Utilization is relative to the <strong>request</strong>, not the limit. No CPU request, no autoscaling.</li>
+      <li>Scaling up is fast. Scaling down waits 5 minutes by default, so a short dip does not remove pods.</li>
+      <li>In the lab it went from 2 to 6 pods in about 30 seconds.</li>
     </ul>
   </div>
+  <aside class="notes"><ul><li>Observed on kind: CPU went up to 467% of the request before the new pods came up, then scaled back to 2 about a minute after the load stopped with a 30 s window.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="09:10" data-kind="talk">
-  <h2>Databases in Kubernetes</h2>
-  <div class="cols">
-    <div class="stack">
-      <h3>In production</h3>
-      <p>Your database is a managed service (RDS, Azure SQL). The app gets its connection string from a Secret. Nothing else changes for you.</p>
-      <p class="small">StatefulSets run clustered databases inside Kubernetes. That is platform work, and out of scope.</p>
-    </div>
-    <div class="stack">
-      <h3>In Lab 6</h3>
-      <pre>kind: Deployment
-spec:
-  replicas: 1
-  strategy:
-    type: Recreate</pre>
-      <p class="small">One replica and <code>Recreate</code>, so two Postgres pods never share the data folder.</p>
-    </div>
-  </div>
-</section>
-
-<section class="slide" data-time="09:10" data-kind="talk">
-  <h2>Jobs: run once, then stop</h2>
+<section class="slide" data-time="09:25" data-kind="talk">
+  <h2>An HPA in YAML</h2>
   <div class="cols wide-left">
-    <pre>apiVersion: batch/v1
-kind: Job
+    <pre>apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
 metadata:
-  name: migrate
+  name: web
 spec:
-  backoffLimit: 3
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-        - name: migrate
-          image: ghcr.io/amirilovic/k8s-training-app:v1
-          args: ["migrate"]</pre>
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 50 }
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 30</pre>
     <ul class="points">
-      <li>A Deployment keeps pods running. A Job runs one to completion and retries on failure.</li>
-      <li>Same image as the app, different argument: <code>migrate</code> applies the EF Core migrations and exits.</li>
-      <li>A CronJob creates a Job on a schedule.</li>
+      <li>Remove <code>replicas</code> from the Deployment once an HPA owns it, or every <code>apply</code> resets the count.</li>
+      <li>The 30-second window is for the lab, so you see it scale down within the lab.</li>
     </ul>
   </div>
 </section>
 
-<section class="slide lab" data-time="09:30" data-kind="lab">
-  <div class="eyebrow">Lab 6 · 45 minutes</div>
-  <h2>Postgres and a migration Job</h2>
+<section class="slide lab" data-time="09:40" data-kind="lab">
+  <div class="eyebrow">Lab block · 110 minutes</div>
+  <h2>Labs 7 and 8</h2>
+  <div class="cols">
+    <table class="kubectl">
+      <tr><th>Start by</th><th>Lab</th></tr>
+      <tr><td>09:40</td><td>Lab 7: Limits and HPA</td></tr>
+      <tr><td>10:30</td><td>Lab 8: Debugging</td></tr>
+      <tr><td>11:30</td><td>Lunch</td></tr>
+    </table>
+    <ul class="points">
+      <li>Still on Lab 7 at 10:30? Stop the load pod and start Lab 8.</li>
+      <li>Take your 15-minute break whenever you want.</li>
+      <li>Finished early? Each README ends with extras.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Walk the room. Keep 5 minutes before lunch for the debugging debrief.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="09:40" data-kind="lab">
+  <div class="eyebrow">Lab 7 · 50 minutes · from 09:40</div>
+  <h2>Limits and HPA</h2>
   <div class="cols">
     <ul class="points">
-      <li>Run Postgres with a PVC, a Service and a Secret.</li>
-      <li>Point the app at it. Read the error it shows.</li>
-      <li>Run the migration Job. Watch the visit counter work.</li>
-      <li>Delete the Postgres pod. The visits are still there.</li>
+      <li>Set a 128Mi limit, hit <code>/admin/leak</code> and find <code>OOMKilled</code>.</li>
+      <li>Set CPU requests and create the HPA.</li>
+      <li>Start a load pod that calls <code>/work</code> in a loop.</li>
+      <li>Watch <code>kubectl get hpa -w</code> and <code>kubectl top pods</code>.</li>
+      <li>Stop the load and watch it scale back down.</li>
     </ul>
     <div class="stack">
-      <div class="path">labs/06-database/README.md</div>
-      <p class="small">Before the migration the app shows <code>relation "visits" does not exist</code>. That is expected.</p>
+      <div class="path">labs/07-limits-hpa/README.md</div>
+      <p class="small">Stop the load with <code>kubectl delete pod load --now</code>. Without <code>--now</code> it takes 30 seconds.</p>
     </div>
   </div>
-</section>
-
-<section class="slide break" data-time="10:15" data-kind="break">
-  <h2>Break</h2>
-  <p class="lead">Back at 10:30 for the debugging lab.</p>
 </section>
 
 <section class="slide" data-time="10:30" data-kind="lab">
@@ -189,7 +232,7 @@ kubectl get events --sort-by=.lastTimestamp</pre>
 </section>
 
 <section class="slide lab" data-time="10:30" data-kind="lab">
-  <div class="eyebrow">Lab 7 · 40 minutes</div>
+  <div class="eyebrow">Lab 8 · 40 minutes · from 10:30</div>
   <h2>Debugging</h2>
   <div class="cols">
     <ul class="points">
@@ -199,110 +242,117 @@ kubectl get events --sort-by=.lastTimestamp</pre>
       <li>Two more for fast people: <code>debug-6</code> and <code>debug-7</code>.</li>
     </ul>
     <div class="stack">
-      <pre class="term">labs/07-debugging/setup.sh</pre>
-      <div class="path">labs/07-debugging/README.md</div>
+      <pre class="term">labs/08-debugging/setup.sh</pre>
+      <div class="path">labs/08-debugging/README.md</div>
     </div>
   </div>
-  <aside class="notes"><ul><li>Answers are in solutions/07-debugging/README.md. Don't hand them out; ask "what does describe say?" instead.</li><li>Debrief for 5 minutes at the end: one person per scenario explains symptom and cause.</li></ul></aside>
+  <aside class="notes"><ul><li>Answers are in solutions/08-debugging/README.md. Don't hand them out; ask "what does describe say?" instead.</li><li>Debrief for 5 minutes at the end: one person per scenario explains symptom and cause.</li></ul></aside>
 </section>
 
-<section class="slide section" data-time="11:10" data-kind="talk">
-  <div class="eyebrow">15 minutes · talk</div>
-  <h2>Autoscaling</h2>
-</section>
-
-<section class="slide" data-time="11:10" data-kind="talk">
-  <h2>The HorizontalPodAutoscaler</h2>
-  <div class="diagram">
-    <div class="box">kubelet<small>measures pods</small></div>
-    <div class="arrow">→</div>
-    <div class="box">metrics-server<small>kubectl top</small></div>
-    <div class="arrow">→</div>
-    <div class="box accent">HPA<small>every 15 s</small></div>
-    <div class="arrow">→</div>
-    <div class="box">Deployment<small>replicas: 2 … 6</small></div>
-  </div>
-  <ul class="points">
-    <li>The HPA only changes one number: the Deployment's <code>replicas</code>.</li>
-    <li>It adds pods, not nodes. When nodes are full, new pods stay Pending. The cluster autoscaler adds nodes, and that is a platform job.</li>
-  </ul>
-</section>
-
-<section class="slide" data-time="11:10" data-kind="talk">
-  <h2>How it decides</h2>
-  <div class="cols">
-    <div class="stack">
-      <pre>utilization = CPU used ÷ CPU <span class="k">request</span>
-
-desired = ceil( current × utilization ÷ target )</pre>
-      <p>3 pods at 150% with a 50% target: 3 × 150 ÷ 50 = <strong>9</strong>, capped at <code>maxReplicas: 6</code>.</p>
-    </div>
-    <ul class="points">
-      <li>Utilization is relative to the <strong>request</strong>, not the limit. No CPU request, no autoscaling.</li>
-      <li>Scaling up is fast. Scaling down waits 5 minutes by default, so a short dip does not remove pods.</li>
-      <li>In the lab it went from 2 to 6 pods in about 30 seconds.</li>
-    </ul>
-  </div>
-  <aside class="notes"><ul><li>Observed on kind: CPU went up to 467% of the request before the new pods came up, then scaled back to 2 about a minute after the load stopped with a 30 s window.</li></ul></aside>
-</section>
-
-<section class="slide" data-time="11:10" data-kind="talk">
-  <h2>An HPA in YAML</h2>
-  <div class="cols wide-left">
-    <pre>apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: web
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: web
-  minReplicas: 2
-  maxReplicas: 6
-  metrics:
-    - type: Resource
-      resource:
-        name: cpu
-        target: { type: Utilization, averageUtilization: 50 }
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 30</pre>
-    <ul class="points">
-      <li>Remove <code>replicas</code> from the Deployment once an HPA owns it, or every <code>apply</code> resets the count.</li>
-      <li>The 30-second window is for the lab, so you see it scale down before lunch.</li>
-    </ul>
-  </div>
-</section>
-
-<section class="slide lab" data-time="11:25" data-kind="lab">
-  <div class="eyebrow">Lab 8 · 30 minutes</div>
-  <h2>HPA</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Set CPU requests and create the HPA.</li>
-      <li>Start a load pod that calls <code>/work</code> in a loop.</li>
-      <li>Watch <code>kubectl get hpa -w</code> and <code>kubectl top pods</code>.</li>
-      <li>Stop the load and watch it scale back down.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/08-hpa/README.md</div>
-      <p class="small">Stop the load with <code>kubectl delete pod load --now</code>. Without <code>--now</code> it takes 30 seconds.</p>
-    </div>
-  </div>
-</section>
-
-<section class="slide break" data-time="11:55" data-kind="break">
+<section class="slide break" data-time="11:30" data-kind="break">
   <h2>Lunch</h2>
-  <p class="lead">Back at 12:25.</p>
+  <p class="lead">Back at 12:00.</p>
 </section>
 
-<section class="slide section" data-time="12:25" data-kind="talk">
+<section class="slide section" data-time="12:00" data-kind="talk">
+  <div class="eyebrow">20 minutes · talk</div>
+  <h2>Storage and databases</h2>
+</section>
+
+<section class="slide" data-time="12:00" data-kind="talk">
+  <h2>A container's files die with it</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>The writable layer from Monday is deleted with the pod. A restarted Postgres would start empty.</li>
+      <li>A volume is a folder mounted into the container that lives outside it.</li>
+      <li>You have used two kinds already: <code>configMap</code> and <code>secret</code>.</li>
+    </ul>
+    <table>
+      <tr><th>Volume</th><th>Lives as long as</th></tr>
+      <tr><td><code>emptyDir</code></td><td>the pod</td></tr>
+      <tr><td><code>configMap</code>, <code>secret</code></td><td>the object</td></tr>
+      <tr><td><code>persistentVolumeClaim</code></td><td>until you delete the claim</td></tr>
+    </table>
+  </div>
+</section>
+
+<section class="slide" data-time="12:00" data-kind="talk">
+  <h2>Asking for disk</h2>
+  <div class="diagram">
+    <div class="box accent">PersistentVolumeClaim<small>"1Gi, ReadWriteOnce"</small></div>
+    <div class="arrow">→</div>
+    <div class="box">StorageClass standard<small>knows how to make disks</small></div>
+    <div class="arrow">→</div>
+    <div class="box">PersistentVolume<small>the actual disk</small></div>
+  </div>
+  <div class="cols">
+    <pre>apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi</pre>
+    <ul class="points">
+      <li>You ask for a size. The StorageClass creates the disk.</li>
+      <li>On kind it is a folder on a node. On AWS the same YAML gets an EBS volume.</li>
+      <li>ReadWriteOnce: one node at a time.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide" data-time="12:00" data-kind="talk">
+  <h2>Databases in Kubernetes</h2>
+  <div class="cols">
+    <div class="stack">
+      <h3>In production</h3>
+      <p>Your database is a managed service (RDS, Azure SQL). The app gets its connection string from a Secret. Nothing else changes for you.</p>
+      <p class="small">StatefulSets run clustered databases inside Kubernetes. That is platform work, and out of scope.</p>
+    </div>
+    <div class="stack">
+      <h3>In Lab 9</h3>
+      <pre>kind: Deployment
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate</pre>
+      <p class="small">One replica and <code>Recreate</code>, so two Postgres pods never share the data folder.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide" data-time="12:00" data-kind="talk">
+  <h2>Jobs: run once, then stop</h2>
+  <div class="cols wide-left">
+    <pre>apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: ghcr.io/amirilovic/k8s-training-app:v1
+          args: ["migrate"]</pre>
+    <ul class="points">
+      <li>A Deployment keeps pods running. A Job runs one to completion and retries on failure.</li>
+      <li>Same image as the app, different argument: <code>migrate</code> applies the EF Core migrations and exits.</li>
+      <li>A CronJob creates a Job on a schedule.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="slide section" data-time="12:20" data-kind="talk">
   <div class="eyebrow">10 minutes · talk</div>
   <h2>Helm</h2>
 </section>
 
-<section class="slide" data-time="12:25" data-kind="talk">
+<section class="slide" data-time="12:20" data-kind="talk">
   <h2>A chart is templates plus values</h2>
   <div class="diagram">
     <div class="diagram col">
@@ -329,12 +379,12 @@ spec:
   </div>
 </section>
 
-<section class="slide" data-time="12:25" data-kind="talk">
+<section class="slide" data-time="12:20" data-kind="talk">
   <h2>Helm commands</h2>
   <div class="cols wide-left">
     <pre class="term">helm repo add traefik https://traefik.github.io/charts
-helm install traefik traefik/traefik --version 41.6.1 \
-  -n traefik --create-namespace -f setup/traefik-values.yaml
+helm template traefik traefik/traefik --version 41.6.1 \
+  -n traefik -f setup/traefik-values.yaml
 
 helm install web ./web -n web-dev --create-namespace \
   -f web/values-dev.yaml
@@ -343,149 +393,68 @@ helm upgrade web ./web -n web-dev -f web/values-dev.yaml \
 helm history web -n web-dev
 helm rollback web 1 -n web-dev</pre>
     <ul class="points">
-      <li>Using someone else's chart: Traefik, our ingress controller for Lab 10.</li>
+      <li>Tuesday's <code>setup/traefik.yaml</code> is the Traefik chart, rendered with <code>helm template</code>.</li>
       <li>Always pin <code>--version</code>.</li>
       <li><code>helm template</code> prints the YAML without installing. Use it when a template does not do what you expect.</li>
     </ul>
   </div>
 </section>
 
-<section class="slide lab" data-time="12:35" data-kind="lab">
-  <div class="eyebrow">Lab 9 · 30 minutes</div>
+<section class="slide lab" data-time="12:30" data-kind="lab">
+  <div class="eyebrow">Lab block · 135 minutes</div>
+  <h2>Labs 9 and 10, capstone</h2>
+  <div class="cols">
+    <table class="kubectl">
+      <tr><th>Start by</th><th>Lab</th></tr>
+      <tr><td>12:30</td><td>Lab 9: Postgres and a migration Job</td></tr>
+      <tr><td>13:15</td><td>Lab 10: Helm</td></tr>
+      <tr><td>13:45</td><td>Capstone in pairs</td></tr>
+      <tr><td>14:45</td><td>What next, feedback</td></tr>
+    </table>
+    <ul class="points">
+      <li>Still on a lab at the next start time? Apply its solution and move on.</li>
+      <li>At 13:45 everyone starts the capstone, finished or not. It starts from the chart in <code>solutions/10-helm/web</code>.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Pair people up at 13:45 so a fast and a slow participant work together.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="12:30" data-kind="lab">
+  <div class="eyebrow">Lab 9 · 45 minutes · from 12:30</div>
+  <h2>Postgres and a migration Job</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Run Postgres with a PVC, a Service and a Secret.</li>
+      <li>Point the app at it. Read the error it shows.</li>
+      <li>Run the migration Job. Watch the visit counter work.</li>
+      <li>Delete the Postgres pod. The visits are still there.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/09-database/README.md</div>
+      <p class="small">Before the migration the app shows <code>relation "visits" does not exist</code>. That is expected.</p>
+    </div>
+  </div>
+</section>
+
+<section class="slide lab" data-time="13:15" data-kind="lab">
+  <div class="eyebrow">Lab 10 · 30 minutes · from 13:15</div>
   <h2>Helm</h2>
   <div class="cols">
     <ul class="points">
-      <li>Install Traefik from its chart.</li>
+      <li>Render the Traefik chart and compare it with <code>setup/traefik.yaml</code>.</li>
       <li>Turn your own manifests into a chart.</li>
       <li>Install it twice, as dev and as prod, from the same templates.</li>
       <li>Upgrade to <code>v2</code>, then roll back.</li>
     </ul>
     <div class="stack">
-      <div class="path">labs/09-helm/README.md</div>
-      <p class="small">The finished chart in <code>solutions/09-helm/web</code> is the starting point for the capstone.</p>
+      <div class="path">labs/10-helm/README.md</div>
+      <p class="small">The finished chart in <code>solutions/10-helm/web</code> is the starting point for the capstone.</p>
     </div>
   </div>
 </section>
 
-<section class="slide section" data-time="13:05" data-kind="talk">
-  <div class="eyebrow">10 minutes · talk</div>
-  <h2>Ingress</h2>
-</section>
-
-<section class="slide" data-time="13:05" data-kind="talk">
-  <h2>One entry point, routed by host and path</h2>
-  <div class="diagram">
-    <div class="box">browser<small>app.localhost:30081</small></div>
-    <div class="arrow">→</div>
-    <div class="box accent">Traefik<small>ingress controller, NodePort 30081</small></div>
-    <div class="arrow">→</div>
-    <div class="diagram col">
-      <div class="box">Service web<small>host app.localhost</small></div>
-      <div class="box">Service web-v2<small>host v2.localhost</small></div>
-    </div>
-    <div class="arrow">→</div>
-    <div class="box ok">pods</div>
-  </div>
-  <ul class="points">
-    <li>An Ingress is a set of routing rules. It does nothing without a controller that reads it.</li>
-    <li>Apps keep ClusterIP Services. Only the controller is exposed.</li>
-    <li>Chrome and Edge send any <code>*.localhost</code> name to your own machine, so no hosts file edits.</li>
-  </ul>
-</section>
-
-<section class="slide" data-time="13:05" data-kind="talk">
-  <h2>An Ingress in YAML</h2>
-  <div class="cols wide-left">
-    <pre>apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: web
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: app.localhost
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: web
-                port: { number: 80 }</pre>
-    <div class="stack">
-      <p><code>ingressClassName</code> picks the controller. Older charts use an annotation instead:</p>
-      <pre>metadata:
-  annotations:
-    kubernetes.io/ingress.class: alb</pre>
-      <p class="small">Most Ingresses in Epic's clusters still use the annotation, with AWS ALB or Traefik as the controller.</p>
-    </div>
-  </div>
-</section>
-
-<section class="slide" data-time="13:05" data-kind="talk">
-  <h2>Controllers differ in the annotations</h2>
-  <div class="cols">
-    <pre>annotations:
-  alb.ingress.kubernetes.io/scheme: internal
-  alb.ingress.kubernetes.io/target-type: ip
-  alb.ingress.kubernetes.io/healthcheck-path: /readyz
-  alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:…</pre>
-    <ul class="points">
-      <li>The Ingress spec only covers hosts, paths and TLS.</li>
-      <li>Everything else (health checks, certificates, auth) is an annotation that one controller understands.</li>
-      <li>That is why Ingress files look different in every company, and why the Gateway API exists.</li>
-    </ul>
-  </div>
-</section>
-
-<section class="slide" data-time="13:05" data-kind="talk">
-  <h2>The Gateway API in two minutes</h2>
-  <div class="cols">
-    <div class="diagram col">
-      <div class="box">GatewayClass<small>which implementation · platform</small></div>
-      <div class="box">Gateway<small>ports, TLS · platform team</small></div>
-      <div class="box accent">HTTPRoute<small>hosts, paths, weights · your team</small></div>
-    </div>
-    <ul class="points">
-      <li>The successor of Ingress. Traffic splits and header matching are in the spec, not in annotations.</li>
-      <li>ingress-nginx, the controller in most older tutorials, is retired.</li>
-      <li>In Lab 10 step 6 you send 90% to v1 and 10% to v2 with one HTTPRoute.</li>
-    </ul>
-  </div>
-</section>
-
-<section class="slide" data-time="13:05" data-kind="talk">
-  <h2>.NET behind a proxy</h2>
-  <div class="cols">
-    <div class="stack">
-      <p>Behind Traefik or an ALB, ASP.NET Core sees the proxy's address and <code>http</code>, even when the browser used HTTPS.</p>
-      <p>Redirects, generated links and OAuth callbacks then point to the wrong place.</p>
-    </div>
-    <pre>env:
-  - name: ASPNETCORE_FORWARDEDHEADERS_ENABLED
-    value: "true"</pre>
-  </div>
-  <p class="small">This makes ASP.NET Core read the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers the proxy adds.</p>
-</section>
-
-<section class="slide lab" data-time="13:15" data-kind="lab">
-  <div class="eyebrow">Lab 10 · 25 minutes</div>
-  <h2>Ingress</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Route <code>app.localhost</code> to the app and <code>v2.localhost</code> to v2.</li>
-      <li>Open both at <code>:30081</code> in the Windows browser.</li>
-      <li>Compare <code>ingressClassName</code> with the old annotation.</li>
-      <li>Step 6: the same routing as a Gateway API HTTPRoute, with a 90/10 split.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/10-ingress/README.md</div>
-    </div>
-  </div>
-</section>
-
-<section class="slide lab" data-time="13:40" data-kind="lab">
-  <div class="eyebrow">Capstone · pairs · 60 minutes</div>
+<section class="slide lab" data-time="13:45" data-kind="lab">
+  <div class="eyebrow">Capstone · pairs · 60 minutes · from 13:45</div>
   <h2>Ship it from your chart</h2>
   <div class="cols">
     <ul class="points">
@@ -504,20 +473,20 @@ spec:
   </div>
 </section>
 
-<section class="slide" data-time="14:40">
+<section class="slide" data-time="14:45">
   <h2>What we did not cover</h2>
   <table>
     <tr><th>Topic</th><th>Where you will meet it</th></tr>
     <tr><td>GitOps (Argo CD, Flux)</td><td>how changes reach real clusters: a merge to git, not <code>kubectl apply</code></td></tr>
     <tr><td>RBAC</td><td>who may read Secrets or deploy to which namespace</td></tr>
-    <tr><td>Gateway API in depth</td><td>new routing setups, TLS, traffic splits</td></tr>
+    <tr><td>Gateway API</td><td>the successor of Ingress: new routing setups, TLS, traffic splits</td></tr>
     <tr><td>StatefulSets</td><td>databases and brokers run inside the cluster</td></tr>
     <tr><td>Managed clusters (EKS, AKS)</td><td>node groups, cloud load balancers, IAM for pods</td></tr>
     <tr><td>Observability</td><td>logs, metrics and traces collected from every pod</td></tr>
   </table>
 </section>
 
-<section class="slide" data-time="14:40">
+<section class="slide" data-time="14:45">
   <h2>Keep going</h2>
   <div class="cols">
     <ul class="points">
@@ -532,6 +501,7 @@ spec:
     </div>
   </div>
 </section>
+
 
 </div></div>
 <script src="deck.js"></script>
