@@ -73,7 +73,7 @@ These are the points where a .NET developer's assumptions meet Kubernetes. Each 
 | Topic | What happens | Lab |
 |---|---|---|
 | Port and user | .NET 8+ images listen on 8080 (`ASPNETCORE_HTTP_PORTS`) and include a non-root `app` user (UID 1654) that the Dockerfile switches to. Port 80 in a manifest is the classic first bug | 1 |
-| Graceful shutdown | Kubernetes sends SIGTERM, the generic host stops accepting requests and drains within `HostOptions.ShutdownTimeout`. Keep it below `terminationGracePeriodSeconds` (30 s) | 2 |
+| Graceful shutdown | Kubernetes sends SIGTERM, the generic host stops accepting requests and drains within `HostOptions.ShutdownTimeout`. Keep it below `terminationGracePeriodSeconds` (30 s) minus the `preStop` pause | 6 |
 | Config mapping | Env var `Section__Key` maps to `Section:Key`. Env vars override `appsettings.json` because of provider order | 5 |
 | Config reload | `reloadOnChange: true` on a mounted ConfigMap misses updates, because Kubernetes swaps a symlink and `FileSystemWatcher` does not see it. Set `DOTNET_USE_POLLING_FILE_WATCHER=true` and show the difference | 5 (finished early) |
 | Health checks | Liveness must not include the database check, otherwise a Postgres outage restarts every app pod. Readiness can include it | 6 |
@@ -94,7 +94,7 @@ Topics cut from the main path and moved to "finished early?" extras: node drain 
 
 ## Lab blocks
 
-Each day the talks come first and the labs follow in one long block: one block on Monday and Tuesday, two on Wednesday (one before lunch, one at the end of the day). Participants work through the labs in a block at their own pace and take the break inside a block when they want. You walk the room instead of pulling everyone back to the screen between labs.
+Each day the talks come first and the labs follow in a long block: one block on Monday, two on Tuesday (one before and one after the break) and two on Wednesday (one before lunch, one at the end of the day). Participants work through the labs in a block at their own pace and take the break inside a block when they want. You walk the room instead of pulling everyone back to the screen between labs.
 
 Two things keep a long block from drifting:
 
@@ -109,10 +109,10 @@ Goal: everyone understands what Kubernetes adds on top of Docker, and has deploy
 |---|---|---|
 | 09:00 | Intro, expectations, everyone's cluster up (`kubectl get nodes` shows 3 nodes) | Setup, 20 min |
 | 09:20 | Docker refresher: image vs container, layers, tags, registries. You demo `docker run` of the training app with `-p` and `-e`, `logs`, `exec`, then `docker kill` and ask "who restarts this in production?" | Talk + demo, 25 min |
-| 09:45 | What Kubernetes is: desired state and the control loop, control plane and nodes, the API server as a database of objects, namespaces. Demo: kill a pod and watch it come back | Talk + demo, 40 min |
+| 09:45 | What Kubernetes is: control plane and nodes, kubectl and contexts, the API server as a database of objects, the shape of a manifest (`kubectl run hello`, then `kubectl get pod hello -o yaml`), how a pod gets created, namespaces | Talk + demo, 40 min |
 | 10:25 | Break | 15 min |
-| 10:40 | Labels, selectors, ReplicaSet, Deployment, rolling updates | Talk, 20 min |
-| 11:00 | Lab block. Lab 1, kubectl and Pods: `get`, `describe`, `explain`, `-o yaml`, `--dry-run=client -o yaml`, namespaces (find the control plane in `kube-system`, `-n` and `-A`, create a namespace and switch to it), run the training image as a Pod, map the Docker commands to kubectl, `kubectl port-forward pod/app 8080:8080`, delete the Pod and see that nothing brings it back. Lab 2, Deployments: `v1` with 3 replicas, delete a pod, scale, roll out `v2` while a curl loop counts failed requests, roll out `v3-broken` and watch it replace every healthy pod, `rollout undo`. Checkpoint: 11:50 start Lab 2 | Hands-on, 105 min |
+| 10:40 | Labels, selectors, ReplicaSet, Deployment, desired state and the control loop. Demo: kill a pod of a Deployment and watch it come back. Rolling updates | Talk + demo, 20 min |
+| 11:00 | Lab block. Lab 1, kubectl and Pods: `get`, `describe`, `explain`, `-o yaml`, `--dry-run=client -o yaml`, namespaces (find the control plane in `kube-system`, `-n` and `-A`, create a namespace and switch to it), create the Pod with `kubectl run`, read it with `kubectl get pod web -o yaml`, delete it (nothing brings it back), generate `pod.yaml` with `--dry-run=client -o yaml`, then `kubectl apply` it and watch it start, with why `apply` beats one-off commands; change the image to `v2` in the file, preview with `kubectl diff`, apply again and see the container restart; map the Docker commands to kubectl, `kubectl port-forward pod/web 8080:8080`. Lab 2, Deployments: generate `deployment.yaml` with a dry run and `apply` it, look at the Deployment, ReplicaSet and pods it created; delete a pod, scale, roll out `v2` and watch the pods get replaced with `kubectl get pods -w`, roll out `v3-broken` and watch it replace every healthy pod, `rollout undo`. Checkpoint: 11:50 start Lab 2 | Hands-on, 105 min |
 | 12:45 | Recap, questions | 15 min |
 
 ## Day 2, Tuesday 09:00 to 13:00: services, ingress, config and health
@@ -124,13 +124,14 @@ Goal: the app is reachable from the browser through a Service and an Ingress, ta
 | 09:00 | Recap of Monday, questions, recreate yesterday's Deployment with `kubectl apply -f` | 15 min |
 | 09:15 | Services: ClusterIP, NodePort, cluster DNS, how a Service finds pods through labels | Talk, 20 min |
 | 09:35 | Ingress: how a request gets from the browser through the ingress controller to a Service, IngressClass, host and path rules | Talk, 10 min |
-| 09:45 | Configuration: ConfigMaps, Secrets, env vars vs mounted files, how this maps onto .NET configuration (`Section__Key`, provider order) | Talk, 20 min |
-| 10:05 | Probes: liveness vs readiness, how .NET health checks map onto them, why liveness must not check the database | Talk, 15 min |
-| 10:20 | Break | 15 min |
-| 10:35 | Lab block. Lab 3, Services: ClusterIP Service called by DNS name from a throwaway pod, NodePort 30080 at `http://localhost:30080`, a `curl` loop showing the pod name change. Lab 4, Ingress: install Traefik with `kubectl apply -f setup/traefik.yaml` (the Traefik Helm chart rendered with `helm template`, so nobody runs Helm before Wednesday), an Ingress that sends `app.localhost` to the app and `v2.localhost` to a second Deployment, both opened at `:30081`, `spec.ingressClassName` vs the older `kubernetes.io/ingress.class` annotation, one real ALB Ingress. Lab 5, Config: `Greeting__Text` as an env var, `appsettings.json` from a ConfigMap, an API key from a Secret at `/secrets`, edit the ConfigMap and see the app ignore it until `kubectl rollout restart`. Lab 6, Probes: add both probes, hit `/admin/unready`, `/admin/hang` and `/admin/crash`, repeat Monday's rollout with zero failed requests. Checkpoints: 11:15 Lab 4, 11:40 Lab 5, 12:25 Lab 6 | Hands-on, 135 min |
+| 09:45 | Lab block. Lab 3, Services: ClusterIP Service called by DNS name from a throwaway pod, NodePort 30080 at `http://localhost:30080`, a `curl` loop showing the pod name change. Lab 4, Ingress: install Traefik with `kubectl apply -f setup/traefik.yaml` (the Traefik Helm chart rendered with `helm template`, so nobody runs Helm before Wednesday), an Ingress that sends `app.localhost` to the app and `v2.localhost` to a second Deployment, both opened at `:30081`, `spec.ingressClassName` vs the older `kubernetes.io/ingress.class` annotation, one real ALB Ingress. Checkpoint: 10:25 start Lab 4 | Hands-on, 65 min |
+| 10:50 | Break | 15 min |
+| 11:05 | Configuration: ConfigMaps, Secrets, env vars vs mounted files, how this maps onto .NET configuration (`Section__Key`, provider order) | Talk, 20 min |
+| 11:25 | Probes: liveness vs readiness, how .NET health checks map onto them, why liveness must not check the database | Talk, 15 min |
+| 11:40 | Lab block. Lab 5, Config: `Greeting__Text` as an env var, `appsettings.json` from a ConfigMap, an API key from a Secret at `/secrets`, edit the ConfigMap and see the app ignore it until `kubectl rollout restart`. Lab 6, Probes: run `kubectl rollout restart` with a curl loop and count the failed requests, add both probes, hit `/admin/unready`, `/admin/hang` and `/admin/crash`, add a `preStop` pause and roll out with zero failed requests. Lab 2 has no curl loop and no probes, so this is the first time anyone sees requests fail. Checkpoint: 12:25 start Lab 6 | Hands-on, 70 min |
 | 12:50 | Recap, questions | 10 min |
 
-Tuesday is now the densest day: four talks and four labs. The Gateway API is dropped from the Ingress lab; it stays on the "what we did not cover" slide.
+Tuesday has two halves: Services and Ingress with their labs before the break, Configuration and Probes with theirs after it. It is still the densest day, with four talks and four labs. The Gateway API is dropped from the Ingress lab; it stays on the "what we did not cover" slide.
 
 ## Day 3, Wednesday 09:00 to 15:00: scaling, debugging, state and packaging
 

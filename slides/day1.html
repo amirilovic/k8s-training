@@ -176,74 +176,160 @@ docker ps -a</pre>
 
 <section class="slide" data-time="09:45" data-kind="talk">
   <h2>Kubernetes is a container orchestration platform</h2>
-  <p class="lead">It runs containerized services across a group of machines and keeps them running the way you described them.</p>
+  <p class="lead">It runs containerized services across a group of machines (a cluster) and keeps them running the way you described them.</p>
   <div class="cols">
     <ul class="points">
-      <li>One way to deploy every service, on a laptop, in AWS or in Azure.</li>
       <li>High availability: failed containers restart, and copies spread over several machines.</li>
       <li>Scaling up and down, by hand or automatically with load.</li>
+      <li>Releases without downtime, and rollback.</li>
     </ul>
     <ul class="points">
-      <li>Releases without downtime, and rollback.</li>
       <li>Service discovery and load balancing between copies.</li>
       <li>Configuration and secrets kept outside the image.</li>
+      <li>One way to deploy every service, on a laptop, in AWS or in Azure.</li>
     </ul>
   </div>
-  <p class="small">Open source since 2014, based on Google's internal system Borg. Maintained by the Cloud Native Computing Foundation. The name is Greek for helmsman; "k8s" counts the 8 letters between k and s.</p>
   <aside class="notes"><ul><li>Tie it back to the Docker slide: every bullet here answers one item from the "Docker doesn't give us" column.</li></ul></aside>
-</section>
-
-<section class="slide" data-time="09:45" data-kind="talk">
-  <h2>You describe the result, controllers do the work</h2>
-  <div class="diagram">
-    <div class="box accent">desired state<small>replicas: 3</small></div>
-    <div class="arrow">→</div>
-    <div class="box">controller compares<small>wants 3, sees 2</small></div>
-    <div class="arrow">→</div>
-    <div class="box">acts<small>creates 1 pod</small></div>
-    <div class="arrow">→</div>
-    <div class="box">actual state<small>3 running</small></div>
-    <div class="arrow">↺</div>
-  </div>
-  <ul class="points">
-    <li>You never say "start a container". You say "there should be 3", and a loop keeps it true.</li>
-    <li>The loop runs forever. A pod that dies at 3 a.m. is replaced the same way as one you delete now.</li>
-    <li>Every kind of object (Deployment, Service, Job) has its own controller.</li>
-  </ul>
 </section>
 
 <section class="slide" data-time="09:45" data-kind="talk">
   <h2>Inside the cluster</h2>
   <div class="diagram">
     <div class="zone" style="flex: 1">
-      <span class="label">control plane · training-control-plane</span>
-      <div class="box accent">API server<small>the only entry point</small></div>
-      <div class="box">etcd<small>stores every object</small></div>
-      <div class="box">scheduler<small>picks a node</small></div>
-      <div class="box">controller manager<small>runs the loops</small></div>
+      <button class="label" data-info="controlplane">control plane · training-control-plane</button>
+      <button class="box accent" data-info="apiserver">API server<small>the only entry point</small></button>
+      <button class="box" data-info="etcd">etcd<small>stores every object</small></button>
+      <button class="box" data-info="scheduler">scheduler<small>picks a node</small></button>
+      <button class="box" data-info="controllers">controller manager<small>runs the loops</small></button>
     </div>
   </div>
   <div class="diagram">
     <div class="zone" style="flex: 1">
-      <span class="label">node · training-worker</span>
-      <div class="box">kubelet<small>starts pods</small></div>
-      <div class="box">containerd</div>
-      <div class="box ok">pod</div><div class="box ok">pod</div>
+      <button class="label" data-info="node">node · training-worker</button>
+      <button class="box" data-info="kubelet">kubelet<small>starts pods</small></button>
+      <button class="box" data-info="containerd">containerd</button>
+      <button class="box ok" data-info="pod">pod</button><button class="box ok" data-info="pod">pod</button>
     </div>
     <div class="zone" style="flex: 1">
-      <span class="label">node · training-worker2</span>
-      <div class="box">kubelet<small>starts pods</small></div>
-      <div class="box">containerd</div>
-      <div class="box ok">pod</div>
+      <button class="label" data-info="node">node · training-worker2</button>
+      <button class="box" data-info="kubelet">kubelet<small>starts pods</small></button>
+      <button class="box" data-info="containerd">containerd</button>
+      <button class="box ok" data-info="pod">pod</button>
     </div>
   </div>
-  <aside class="notes"><ul><li>kubectl only ever talks to the API server. Nothing talks to etcd directly.</li><li>The kubelet on each node watches the API server for pods assigned to its node and starts them.</li><li>In Lab 1 they find these components as pods in kube-system.</li></ul></aside>
+  <div class="info" aria-live="polite">
+    <p class="hint" data-for="">Click a box or a zone name to see what it does.</p>
+    <div data-for="controlplane" hidden>
+      <h3>Control plane</h3>
+      <p>The machines that run the cluster itself. Here it is one Docker container, <code>training-control-plane</code>. It has a taint, so your pods never land on it. On EKS and AKS you never see it: the cloud provider runs it for you.</p>
+      <code class="cmd">kubectl describe node training-control-plane | grep Taints</code>
+    </div>
+    <div data-for="apiserver" hidden>
+      <h3>API server</h3>
+      <p>The front door of the cluster. kubectl, the scheduler, the controllers and every kubelet talk only to the API server. It checks who you are and what you may do, validates the object, stores it in etcd, and tells everyone watching that something changed.</p>
+      <code class="cmd">kubectl get pods -n kube-system -l component=kube-apiserver</code>
+    </div>
+    <div data-for="etcd" hidden>
+      <h3>etcd</h3>
+      <p>A key-value database with every object in the cluster: Deployments, pods, Secrets and their status. Only the API server reads and writes it. Lose etcd without a backup and the cluster forgets everything it was managing. On EKS and AKS the cloud provider runs and backs it up.</p>
+      <code class="cmd">kubectl get pods -n kube-system -l component=etcd</code>
+    </div>
+    <div data-for="scheduler" hidden>
+      <h3>Scheduler</h3>
+      <p>Watches for new pods that have no node yet, picks one and writes it into the pod. It skips nodes without enough free CPU and memory for the pod's requests, then prefers the best fit. It starts nothing itself. A pod that fits nowhere stays <code>Pending</code>.</p>
+      <code class="cmd">kubectl get pods -n kube-system -l component=kube-scheduler</code>
+    </div>
+    <div data-for="controllers" hidden>
+      <h3>Controller manager</h3>
+      <p>Runs the control loops, one per kind of object. The ReplicaSet controller keeps the pod count, the Deployment controller runs rollouts, the node controller notices dead nodes. Each loop compares what you asked for with what exists and fixes the difference.</p>
+      <code class="cmd">kubectl get pods -n kube-system -l component=kube-controller-manager</code>
+    </div>
+    <div data-for="node" hidden>
+      <h3>Node</h3>
+      <p>A machine that runs your pods: a VM or a physical server, here a Docker container. Every node runs a kubelet, a container runtime and kube-proxy, which routes Service traffic (Tuesday). More nodes means more room for pods.</p>
+      <code class="cmd">kubectl get nodes -o wide</code>
+    </div>
+    <div data-for="kubelet" hidden>
+      <h3>kubelet</h3>
+      <p>The agent on every node. It watches the API server for pods assigned to its node, asks containerd to start their containers, restarts crashed containers and reports pod status back. It is a system service on the node, not a pod.</p>
+      <code class="cmd">docker exec training-worker systemctl status kubelet</code>
+    </div>
+    <div data-for="containerd" hidden>
+      <h3>containerd</h3>
+      <p>The container runtime. It pulls images and starts and stops containers when the kubelet asks. Docker uses containerd underneath too, so an image built with <code>docker build</code> runs here unchanged. Kubernetes does not need Docker on its nodes.</p>
+      <code class="cmd">docker exec training-worker crictl ps</code>
+    </div>
+    <div data-for="pod" hidden>
+      <h3>Pod</h3>
+      <p>The smallest thing Kubernetes runs: one or <b>more</b> containers that share an IP address and volumes and always land on the same node. Usually one app container per pod. Pods are replaced, not repaired: a new pod gets a new name and a new IP. You can think of it like a virtual machine running containers.</p>
+      <code class="cmd">kubectl get pods -A -o wide</code>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Click each part while you explain it. The panel shows a command for each one; run it live on your cluster.</li><li>kubectl only ever talks to the API server. Nothing talks to etcd directly.</li><li>In Lab 1 they find these components as pods in kube-system.</li></ul></aside>
 </section>
 
 <section class="slide" data-time="09:45" data-kind="talk">
-  <h2>What happens on <code>kubectl apply</code></h2>
+  <h2>How do we talk to Kubernetes?</h2>
+  <div class="cols wide-left">
+    <pre class="term">kubectl config use-context kind-training
+<span class="ok">Switched to context "kind-training".</span>
+
+kubectl run hello \
+  --image=ghcr.io/amirilovic/k8s-training-app:v1
+<span class="ok">pod/hello created</span>
+
+kubectl get pods
+<span class="c">NAME    READY   STATUS    RESTARTS   AGE</span>
+hello   1/1     <span class="ok">Running</span>   0          8s
+
+kubectl logs hello</pre>
+    <ul class="points">
+      <li><code>kubectl</code> is the command-line client. Every command is an HTTPS request to the API server.</li>
+      <li><code>~/.kube/config</code> says which cluster and which user. That pair is a context.</li>
+      <li><code>use-context</code> switches cluster. <code>kubectl config current-context</code> shows where you are.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Run it live, then once more with -v=6 and point at the request line: POST https://127.0.0.1:…/api/v1/namespaces/default/pods, 201 Created. That proves the first bullet. The URL also previews the manifest slide: /api/v1 is apiVersion: v1, namespaces/default is the namespace, pods is the kind.</li><li>kind create cluster switches the context to kind-training. Anyone with work clusters in their kubeconfig should check current-context before deleting anything.</li><li>k9s, Lens, Helm and CI pipelines all talk to the same API. kubectl is just the client everyone has.</li><li>Leave the hello pod running: the next slide reads it back.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>Every object has the same shape</h2>
+  <div class="cols wide-left">
+    <pre><span class="c">$ kubectl get pod hello -o yaml</span>
+<span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: Pod
+<span class="k">metadata</span>:
+  name: hello
+  namespace: default
+  labels:
+    run: hello
+<span class="k">spec</span>:
+  containers:
+  - name: hello
+    image: ghcr.io/amirilovic/k8s-training-app:v1
+    imagePullPolicy: IfNotPresent  <span class="c"># default</span>
+  nodeName: training-worker      <span class="c"># scheduler</span>
+<span class="k">status</span>:
+  phase: Running
+  podIP: 10.244.1.7</pre>
+    <div class="stack">
+    <table class="fields">
+      <tr><td><code>apiVersion</code></td><td>Which API reads it. <code>v1</code> for Pods and Services, <code>apps/v1</code> for Deployments.</td></tr>
+      <tr><td><code>kind</code></td><td>The type of object.</td></tr>
+      <tr><td><code>metadata</code></td><td>Name, namespace and labels. The name is unique per kind in a namespace.</td></tr>
+      <tr><td><code>spec</code></td><td>What you want. You write it.</td></tr>
+      <tr><td><code>status</code></td><td>What is. Kubernetes writes it.</td></tr>
+    </table>
+    <p class="small">Kubernetes filled in defaults, the scheduler's choice and <code>status</code>. A file you write needs only the first four fields.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Run kubectl get pod hello -o yaml live. The real output is several screens long; the slide keeps the parts worth pointing at.</li><li>kubectl run added the label run: hello. nodeName is the scheduler's decision from the cluster diagram, and status comes from the kubelet.</li><li>The next slide shows who fills in nodeName and status: the scheduler and the kubelet, step by step.</li><li>Nobody writes this from memory. In Lab 1 they generate a file with kubectl run web --image=... --dry-run=client -o yaml.</li><li>Delete the pod afterwards: kubectl delete pod hello.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:45" data-kind="talk">
+  <h2>How a pod is created</h2>
   <div class="diagram">
-    <div class="box accent">kubectl<small>sends YAML</small></div>
+    <div class="box accent">kubectl<small>sends the pod</small></div>
     <div class="arrow">→</div>
     <div class="box">API server<small>validates, stores</small></div>
     <div class="arrow">→</div>
@@ -254,36 +340,10 @@ docker ps -a</pre>
     <div class="box ok">Running</div>
   </div>
   <ul class="points">
-    <li><code>apply</code> returns as soon as the object is stored. The pod starts afterwards.</li>
-    <li>Each step writes back to the object's <code>status</code>. That is what <code>kubectl get</code> and <code>describe</code> show you.</li>
+    <li><code>kubectl</code> returns as soon as the pod is stored. It starts afterwards.</li>
+    <li>Each step records its progress on the pod. That is what <code>kubectl get</code> and <code>describe</code> show you.</li>
     <li>When something hangs, the last step that succeeded tells you where to look.</li>
   </ul>
-</section>
-
-<section class="slide" data-time="09:45" data-kind="talk">
-  <h2>Every object has the same shape</h2>
-  <div class="cols wide-left">
-    <pre><span class="k">apiVersion</span>: v1
-<span class="k">kind</span>: Pod
-<span class="k">metadata</span>:
-  name: web
-  namespace: training
-  labels:
-    app: web
-<span class="k">spec</span>:                    <span class="c"># what you want</span>
-  containers:
-    - name: web
-      image: ghcr.io/amirilovic/k8s-training-app:v1
-      ports:
-        - containerPort: 8080
-<span class="k">status</span>:                  <span class="c"># what is, written by Kubernetes</span>
-  phase: Running</pre>
-    <ul class="points">
-      <li>You write <code>spec</code>. Kubernetes writes <code>status</code>.</li>
-      <li>Never write YAML from memory: <code>--dry-run=client -o yaml</code> generates it.</li>
-      <li><code>kubectl explain pod.spec.containers</code> documents every field.</li>
-    </ul>
-  </div>
 </section>
 
 <section class="slide" data-time="09:45" data-kind="talk">
@@ -310,6 +370,7 @@ docker ps -a</pre>
       <li>Every command works in one namespace. <code>-n</code> picks another, <code>-A</code> means all.</li>
       <li>Today everyone switches to <code>training</code>, so you can leave out <code>-n</code>.</li>
     </ul>
+    <div class="stack">
     <pre class="term">kubectl get namespaces
 kubectl get pods -n kube-system
 kubectl get pods -A
@@ -317,28 +378,9 @@ kubectl get pods -A
 kubectl create namespace training
 kubectl config set-context --current \
   --namespace training</pre>
-  </div>
-</section>
-
-<section class="slide" data-time="10:15" data-kind="demo">
-  <h2>Demo: kill a pod, watch it come back</h2>
-  <div class="cols wide-left">
-    <pre class="term">kubectl create deployment demo \
-  --image=ghcr.io/amirilovic/k8s-training-app:v1 \
-  --replicas=3
-
-kubectl get pods -w          <span class="c"># second tab</span>
-
-kubectl delete pod demo-7c9f…-x2k4p
-<span class="c">demo-7c9f…-x2k4p   1/1   Terminating</span>
-<span class="ok">demo-7c9f…-q8m2z   0/1   ContainerCreating</span>
-<span class="ok">demo-7c9f…-q8m2z   1/1   Running</span></pre>
-    <div class="stack">
-      <p>You deleted a pod. The Deployment's controller saw 2 instead of 3 and made a new one, with a new name.</p>
-      <p class="small">This is the answer to "who restarts it in production?". After the break, Deployments. Then in Lab 1 you start with bare Pods, which nobody restarts.</p>
+    <p class="small">Companies usually give each business domain or each team its own namespace: <code>payments</code>, <code>orders</code>, <code>search</code>, or <code>team-checkout</code>, <code>team-platform</code>. When one cluster serves several environments, they add a suffix: <code>payments-dev</code>, <code>payments-prod</code>.</p>
     </div>
   </div>
-  <aside class="notes"><ul><li>Delete the demo deployment afterwards: kubectl delete deployment demo.</li></ul></aside>
 </section>
 
 <section class="slide break" data-time="10:25" data-kind="break">
@@ -362,6 +404,9 @@ kubectl delete pod demo-7c9f…-x2k4p
         <div class="box ok">pod<small>app=web</small></div>
         <div class="box ghost">pod<small>app=postgres</small></div>
       </div>
+      <pre class="term">kubectl label pod &lt;pod&gt; env=dev
+kubectl get pods --show-labels
+kubectl get pods -l app=web</pre>
     </div>
     <ul class="points">
       <li>Labels are key-value tags on any object.</li>
@@ -369,7 +414,7 @@ kubectl delete pod demo-7c9f…-x2k4p
       <li>Change a pod's label and it leaves its Deployment. The Deployment then creates a replacement.</li>
     </ul>
   </div>
-  <aside class="notes"><ul><li>Demo if time: kubectl get pods --show-labels, then kubectl get pods -l app=web.</li></ul></aside>
+  <aside class="notes"><ul><li>Demo if time: add a label to any pod, then list labels and filter with -l.</li><li>Changing a label that already exists needs --overwrite, for example kubectl label pod &lt;pod&gt; env=prod --overwrite.</li><li>kubectl label pod &lt;pod&gt; env- removes the label.</li></ul></aside>
 </section>
 
 <section class="slide" data-time="10:40" data-kind="talk">
@@ -381,12 +426,13 @@ kubectl delete pod demo-7c9f…-x2k4p
       <div class="box">ReplicaSet web-848b6c9846<small>one per version of the pod template</small></div>
       <div class="arrow v">↓ owns</div>
       <div class="diagram">
-        <div class="box ok">web-848b…-cg4bh</div>
-        <div class="box ok">web-848b…-8cmwj</div>
-        <div class="box ok">web-848b…-b54cp</div>
+        <div class="box ok">pod<small>…-cg4bh</small></div>
+        <div class="box ok">pod<small>…-8cmwj</small></div>
+        <div class="box ok">pod<small>…-b54cp</small></div>
       </div>
     </div>
     <ul class="points">
+      <li><strong>A Deployment runs your app as a set of identical pods.</strong> It keeps their number and replaces them step by step on each release.</li>
       <li>You write the Deployment. You never write the ReplicaSet.</li>
       <li>The ReplicaSet keeps the count. The Deployment manages versions.</li>
       <li>The hash in the name changes when the pod template changes.</li>
@@ -395,68 +441,134 @@ kubectl delete pod demo-7c9f…-x2k4p
 </section>
 
 <section class="slide" data-time="10:40" data-kind="talk">
-  <h2>A rolling update, step by step</h2>
-  <table class="kubectl">
-    <tr><th>Step</th><th>Old ReplicaSet (v1)</th><th>New ReplicaSet (v2)</th></tr>
-    <tr><td>start</td><td>● ● ●</td><td></td></tr>
-    <tr><td>1</td><td>● ● ●</td><td class="t-lab">○ starting</td></tr>
-    <tr><td>2</td><td>● ●</td><td class="t-lab">●</td></tr>
-    <tr><td>3</td><td>● ●</td><td class="t-lab">● ○</td></tr>
-    <tr><td>…</td><td>●</td><td class="t-lab">● ●</td></tr>
-    <tr><td>done</td><td></td><td class="t-lab">● ● ●</td></tr>
-  </table>
-  <p class="small">Defaults: <code>maxSurge: 25%</code> rounds up to 1 extra pod, <code>maxUnavailable: 25%</code> rounds down to 0. With 3 replicas there are never fewer than 3 pods, and the old ReplicaSet stays around (scaled to 0) for rollback.</p>
+  <h2>You describe the result, controllers do the work</h2>
+  <div class="diagram">
+    <div class="box accent">desired state<small>replicas: 3</small></div>
+    <div class="arrow">→</div>
+    <div class="box">controller compares<small>wants 3, sees 2</small></div>
+    <div class="arrow">→</div>
+    <div class="box">acts<small>creates 1 pod</small></div>
+    <div class="arrow">→</div>
+    <div class="box">actual state<small>3 running</small></div>
+    <div class="arrow">↺</div>
+  </div>
+  <ul class="points">
+    <li>You never say "start a container". You say "there should be 3", and a loop keeps it true.</li>
+    <li>The loop runs forever. A pod that dies at 3 a.m. is replaced the same way as one you delete now.</li>
+    <li>Every kind of object (Deployment, Service, Job) has its own controller.</li>
+  </ul>
 </section>
 
 <section class="slide" data-time="10:40" data-kind="talk">
-  <h2>Kubernetes cannot see inside your app</h2>
-  <div class="cols">
+  <h2>A Deployment in YAML</h2>
+  <div class="cols wide-left">
+    <pre><span class="k">apiVersion</span>: apps/v1
+<span class="k">kind</span>: Deployment
+<span class="k">metadata</span>:
+  name: web
+<span class="k">spec</span>:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: web
+  template:                <span class="c"># the pod to create</span>
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/amirilovic/k8s-training-app:v1
+          ports:
+            - containerPort: 8080</pre>
     <div class="stack">
-      <p>Without a readiness probe, a new pod counts as ready as soon as its container starts.</p>
-      <p>Our app waits 3 seconds before it listens. Kubernetes sends it traffic anyway.</p>
-      <p class="small">A broken release (<code>v3-broken</code> exits on startup) passes this test too, for a moment. In Lab 2 it replaces every healthy pod.</p>
-    </div>
-    <div class="figure">
-      <div><div class="n bad">9</div><div class="cap">failed requests out of 339 during a rollout from v1 to v2, no probes</div></div>
+    <table class="fields">
+      <tr><td><code>replicas</code></td><td>How many pods. The ReplicaSet keeps this count.</td></tr>
+      <tr><td><code>selector</code></td><td>Which pods belong to it. Must match the template's labels.</td></tr>
+      <tr><td><code>template</code></td><td>The pod to create: the Pod manifest from before, without <code>apiVersion</code> and <code>kind</code>.</td></tr>
+    </table>
+    <pre class="term">kubectl apply -f deployment.yaml</pre>
+    <p class="small">Change the image and apply again: that is a release.</p>
     </div>
   </div>
-  <aside class="notes"><ul><li>Measured on kind with a curl loop every 100 ms. They will see a similar number in Lab 2.</li><li>Tuesday's Lab 6 adds probes and gets 0 failures. Don't fix it today, let them feel it.</li></ul></aside>
+  <aside class="notes"><ul><li>This is the file they write in Lab 2, labs/02-deployments.</li><li>Point at the two app: web labels. If selector and template labels differ, the API server rejects the Deployment.</li><li>apply creates the object the first time and updates it after that. The rolling update slide shows what an update does.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="10:40" data-kind="demo">
+  <h2>Demo: kill a pod, watch it come back</h2>
+  <div class="cols wide-left">
+    <pre class="term">kubectl create deployment demo \
+  --image=ghcr.io/amirilovic/k8s-training-app:v1 \
+  --replicas=3
+
+kubectl get pods -w          <span class="c"># second tab</span>
+
+kubectl delete pod demo-7c9f…-x2k4p
+<span class="c">demo-7c9f…-x2k4p   1/1   Terminating</span>
+<span class="ok">demo-7c9f…-q8m2z   0/1   ContainerCreating</span>
+<span class="ok">demo-7c9f…-q8m2z   1/1   Running</span></pre>
+    <div class="stack">
+      <p>You deleted a pod. The Deployment's controller saw 2 instead of 3 and made a new one, with a new name.</p>
+      <p class="small">This is the answer to "who restarts it in production?". In Lab 1 you start with bare Pods, which nobody restarts. Lab 2 adds the Deployment.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Delete the demo deployment afterwards: kubectl delete deployment demo.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="10:40" data-kind="talk">
+  <h2>A rolling update, step by step</h2>
+  <p class="lead">A rolling update deploys a new version of the service without downtime. It replaces pods a few at a time: start a new one, wait until it runs, remove an old one.</p>
+  <div class="cols">
+    <table class="kubectl">
+      <tr><th>Step</th><th>Old (v1)</th><th>New (v2)</th></tr>
+      <tr><td>start</td><td>● ● ●</td><td></td></tr>
+      <tr><td>1</td><td>● ● ●</td><td class="t-lab">○ starting</td></tr>
+      <tr><td>2</td><td>● ●</td><td class="t-lab">●</td></tr>
+      <tr><td>3</td><td>● ●</td><td class="t-lab">● ○</td></tr>
+      <tr><td>…</td><td>●</td><td class="t-lab">● ●</td></tr>
+      <tr><td>done</td><td></td><td class="t-lab">● ● ●</td></tr>
+    </table>
+    <div class="stack">
+      <p class="small">Two settings set the pace. <code>maxSurge</code> is how many extra pods may exist during the update, and <code>maxUnavailable</code> is how many may be missing.</p>
+      <p class="small">Both default to 25%: with 3 replicas that is 1 extra and 0 missing, so there are always at least 3 pods.</p>
+      <p class="small">The old ReplicaSet stays, scaled to 0, so a rollback is instant.</p>
+    </div>
+  </div>
 </section>
 
 <section class="slide" data-time="10:40" data-kind="talk">
   <h2>Rollout commands</h2>
-  <div class="cols wide-left">
-    <pre class="term">kubectl set image deployment/web \
-  web=ghcr.io/amirilovic/k8s-training-app:v2
-kubectl rollout status deployment/web
-kubectl rollout history deployment/web
-
-kubectl rollout undo deployment/web
-kubectl rollout undo deployment/web --to-revision=1</pre>
-    <ul class="points">
-      <li><code>undo</code> goes back one revision, not to the first one.</li>
-      <li>In real projects you change the image tag in YAML and <code>apply</code>. <code>set image</code> is for the lab.</li>
-      <li>Never deploy <code>:latest</code>. You cannot roll back to "the previous latest".</li>
-    </ul>
+  <table class="fields">
+    <tr><td><code>kubectl set image deployment/web web=…:v2</code></td><td>Give container <code>web</code> a new image. That starts a rollout.</td></tr>
+    <tr><td><code>kubectl rollout status deployment/web</code></td><td>Wait until the rollout is done, or see where it is stuck.</td></tr>
+    <tr><td><code>kubectl rollout history deployment/web</code></td><td>List the revisions. Each one is a ReplicaSet.</td></tr>
+    <tr><td><code>kubectl rollout undo deployment/web</code></td><td>Go back one revision, not to the first one.</td></tr>
+    <tr><td><code>kubectl rollout undo deployment/web --to-revision=1</code></td><td>Go back to a chosen revision.</td></tr>
+  </table>
+  <div class="cols">
+    <p class="small">In real projects you change the image tag in the YAML file and <code>apply</code> it. <code>set image</code> is a shortcut for the lab.</p>
+    <p class="small">Never deploy <code>:latest</code>. A rollback needs a tag that still points at the old image.</p>
   </div>
 </section>
 
 <section class="slide" data-time="10:40" data-kind="talk">
-  <h2>.NET: stopping cleanly</h2>
+  <h2>How Kubernetes runs on your laptop</h2>
   <div class="diagram">
-    <div class="box">pod marked for deletion</div>
+    <div class="box accent">kubectl<small>in Ubuntu (WSL2)</small></div>
     <div class="arrow">→</div>
-    <div class="box accent">SIGTERM<small>.NET host starts shutdown</small></div>
-    <div class="arrow">→</div>
-    <div class="box">in-flight requests finish<small>HostOptions.ShutdownTimeout</small></div>
-    <div class="arrow">→</div>
-    <div class="box bad">SIGKILL<small>after 30 s grace period</small></div>
+    <div class="zone" style="flex: 1">
+      <span class="label">Docker Engine in WSL2 · each node is a container</span>
+      <div class="box">training-control-plane<small>API server, etcd</small></div>
+      <div class="box">training-worker<small>kubelet, pods</small></div>
+      <div class="box">training-worker2<small>kubelet, pods</small></div>
+    </div>
   </div>
   <ul class="points">
-    <li>The generic host handles SIGTERM for you. Look for "SIGTERM received" in the training app's logs.</li>
-    <li>Both timeouts default to 30 seconds in .NET 8 and later. Keep the host's shorter than <code>terminationGracePeriodSeconds</code>.</li>
-    <li>Long background work needs <code>stoppingToken</code> checks, or it is killed halfway.</li>
+    <li><strong>kind</strong> is "Kubernetes in Docker". Each node is a Docker container, and your pods run as containers inside it.</li>
+    <li>It is real Kubernetes, with the same API and <code>kubectl</code> as EKS or AKS. Only the machines are pretend.</li>
+    <li><code>kubectl</code> reaches the API server on <code>127.0.0.1</code>. Ports 30080 and 30081 go to your browser, set in <code>setup/kind.yaml</code>.</li>
   </ul>
+  <aside class="notes"><ul><li>Show it live: docker ps lists the three node containers. docker exec training-worker crictl ps lists the containers inside one node.</li><li>kubectl config view --minify shows the server address, https://127.0.0.1 with a random port that Docker maps to 6443 on the control-plane container.</li><li>The control plane has a taint, so the labs' pods only land on the two workers.</li><li>A broken cluster is cheap: kind delete cluster --name training, then setup/create-cluster.sh, under a minute.</li></ul></aside>
 </section>
 
 <section class="slide lab" data-time="11:00" data-kind="lab">
@@ -485,9 +597,9 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
     <ul class="points">
       <li>Find the control plane in <code>kube-system</code>.</li>
       <li>Create the <code>training</code> namespace and make it your default.</li>
-      <li>Run the app as a Pod, read its logs, exec into it.</li>
-      <li>Open it in the Windows browser through <code>port-forward</code>.</li>
-      <li>Delete the Pod and see that nothing brings it back.</li>
+      <li>Run the app as a Pod, read its YAML, delete it, recreate it from a file with <code>apply</code>.</li>
+      <li>Change the image in the file, <code>kubectl diff</code>, apply again.</li>
+      <li>Read its logs, exec into it, open it through <code>port-forward</code>.</li>
     </ul>
     <div class="stack">
       <div class="path">labs/01-pods/README.md</div>
@@ -501,14 +613,14 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
   <h2>Deployments and rollouts</h2>
   <div class="cols">
     <ul class="points">
-      <li>Deploy <code>v1</code> with 3 replicas, delete a pod, scale.</li>
-      <li>Roll out <code>v2</code> while a curl loop runs. Count the failures.</li>
+      <li>Generate <code>deployment.yaml</code> with a dry run and <code>apply</code> it.</li>
+      <li>Delete a pod and watch it come back, then scale.</li>
+      <li>Roll out <code>v2</code> and watch the pods get replaced one at a time.</li>
       <li>Roll out <code>v3-broken</code> and watch the app go down.</li>
       <li>Find out why with <code>kubectl logs</code>, then <code>rollout undo</code>.</li>
     </ul>
     <div class="stack">
       <div class="path">labs/02-deployments/README.md</div>
-      <p class="small">The lab gives you a ready-made Service on <code>http://localhost:30080</code> for the curl loop. Services are tomorrow's first topic.</p>
     </div>
   </div>
 </section>
@@ -520,7 +632,7 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
       <li>Read the cluster: <code>get</code>, <code>describe</code>, <code>logs</code>, <code>explain</code>.</li>
       <li>Run the app as a Deployment and change its replica count.</li>
       <li>Release a new version and roll it back.</li>
-      <li>Explain why a rollout dropped requests.</li>
+      <li>Find out why a pod crashes with <code>logs</code> and <code>describe</code>.</li>
     </ul>
     <div class="stack">
       <h3>Tomorrow</h3>
@@ -529,6 +641,7 @@ kubectl rollout undo deployment/web --to-revision=1</pre>
     </div>
   </div>
 </section>
+
 
 
 </div></div>

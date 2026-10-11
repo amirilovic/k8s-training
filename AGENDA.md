@@ -2,7 +2,7 @@
 
 Three days, about a quarter talk and three quarters hands-on. Slides for each day are in [slides/](slides/index.html).
 
-Each day starts with the talks. Then comes a lab block where you work through the labs at your own pace: one block on Monday and Tuesday, two on Wednesday. The times in a block are the latest start for each lab. If you are still on the previous lab by then, apply its solution from `solutions/` and move on. Breaks inside a block are whenever you want.
+Talks come first, then a lab block where you work through the labs at your own pace. Monday has one block, Tuesday and Wednesday have two, one before and one after the break or lunch. The times in a block are the latest start for each lab. If you are still on the previous lab by then, apply its solution from `solutions/` and move on. On Wednesday morning, take the break inside the block whenever you want.
 
 ## Monday 12 October, 09:00 to 13:00
 
@@ -29,12 +29,13 @@ Services, ingress, config and health.
 | 09:00 | Recap, recreate Monday's Deployment |  |
 | 09:15 | Services and DNS | talk |
 | 09:35 | Ingress | talk |
-| 09:45 | Configuration | talk |
-| 10:05 | Probes | talk |
-| 10:20 | Break |  |
-| 10:35 | Lab block |  |
-| 10:35 | [Lab 3: Services](labs/03-services/README.md) | lab |
-| 11:15 | [Lab 4: Ingress](labs/04-ingress/README.md) | lab |
+| 09:45 | Lab block |  |
+| 09:45 | [Lab 3: Services](labs/03-services/README.md) | lab |
+| 10:25 | [Lab 4: Ingress](labs/04-ingress/README.md) | lab |
+| 10:50 | Break |  |
+| 11:05 | Configuration | talk |
+| 11:25 | Probes | talk |
+| 11:40 | Lab block |  |
 | 11:40 | [Lab 5: ConfigMaps and Secrets](labs/05-config/README.md) | lab |
 | 12:25 | [Lab 6: Probes](labs/06-probes/README.md) | lab |
 | 12:50 | Recap and questions |  |

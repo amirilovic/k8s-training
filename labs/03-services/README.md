@@ -1,16 +1,10 @@
 # Lab 3: Services and cluster DNS
 
-Pods come and go, and every new pod gets a new IP address. A Service gives a group of pods one stable name and address, and spreads requests over them. You build the Service that you used yesterday as a ready-made file: first one reachable only inside the cluster, then one reachable from your browser. About 40 minutes.
+Pods come and go, and every new pod gets a new IP address. A Service gives a group of pods one stable name and address, and spreads requests over them. You build two: first one reachable only inside the cluster, then one reachable from your browser. About 40 minutes.
 
 ## Before you start
 
 - Your Deployment `web` from Lab 2 runs with 3 ready pods (`kubectl get deployment web`).
-- Delete yesterday's ready-made Service, so you can build it yourself:
-
-```bash
-kubectl delete service web --ignore-not-found
-```
-
 - Work in `~/k8s-training/work`.
 
 Catch-up: `kubectl apply -f ~/k8s-training/solutions/02-deployments/`

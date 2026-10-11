@@ -1,6 +1,6 @@
 # Lab 6: Probes
 
-Kubernetes only knows that your process runs. It does not know whether the app is ready for traffic or whether it is stuck. You tell it with probes, then break the app on purpose to see what Kubernetes does with that information. At the end you repeat yesterday's rollout and it drops no requests. About 25 minutes.
+Kubernetes only knows that your process runs. It does not know whether the app is ready for traffic or whether it is stuck. First you watch a rollout drop requests. Then you tell Kubernetes with probes, break the app on purpose to see what it does with that information, and repeat the rollout without dropping a single request. About 25 minutes.
 
 ## Before you start
 
@@ -22,7 +22,29 @@ The app has health endpoints, plus admin endpoints that break it on purpose:
 
 ## Steps
 
-### 1. Add a readiness and a liveness probe
+### 1. See the problem
+
+In the second tab, start a loop that calls the app twice a second and prints `FAILED` when a request fails:
+
+```bash
+while true; do curl -s --max-time 1 localhost:30080/ || echo "FAILED $(date +%T)"; sleep 0.5; done
+```
+
+In the first tab, replace every pod. `rollout restart` runs the same rolling update as a new version, without changing anything:
+
+```bash
+kubectl rollout restart deployment/web
+kubectl rollout status deployment/web
+```
+
+Count the `FAILED` lines. Two things go wrong during a rollout:
+
+- A new pod gets traffic as soon as its container starts, but the app needs 3 seconds before it listens.
+- An old pod stops listening the moment it gets the stop signal, while the Service may still send it requests for a moment.
+
+Kubernetes cannot see inside your app. The rest of this lab fixes both. Stop the loop with Ctrl+C.
+
+### 2. Add a readiness and a liveness probe
 
 Add both probes to the container in `deployment.yaml`, at the same level as `ports`:
 
@@ -48,7 +70,7 @@ kubectl rollout status deployment/web
 
 During this rollout, the new pods show `0/1` for about 3 seconds after they start: the app warms up, and the readiness probe keeps traffic away until it answers.
 
-### 2. Take one pod out of rotation
+### 3. Take one pod out of rotation
 
 In the second tab:
 
@@ -80,7 +102,7 @@ Bring it back:
 curl -s localhost:8080/admin/ready
 ```
 
-### 3. Make one pod hang
+### 4. Make one pod hang
 
 ```bash
 curl -s localhost:8080/admin/hang
@@ -99,7 +121,7 @@ kill %1
 kubectl port-forward pod/$POD 8080:8080 >/dev/null &
 ```
 
-### 4. Crash a pod
+### 5. Crash a pod
 
 ```bash
 curl -s localhost:8080/admin/crash
@@ -114,9 +136,9 @@ The restart count goes up again. `--previous` shows the log of the container tha
 kill %1
 ```
 
-### 5. Repeat yesterday's rollout
+### 6. Repeat the rollout
 
-In Lab 2 a rollout dropped a few requests. One more setting closes the last gap: when a pod is stopped, it should keep serving for a few seconds while the Service removes it. Add this to the container:
+The readiness probe fixes the first problem from step 1. One more setting fixes the second: when a pod is stopped, it should keep serving for a few seconds while the Service removes it. Add this to the container:
 
 ```yaml
           lifecycle:
@@ -133,7 +155,7 @@ kubectl rollout status deployment/web
 Start the loop in the second tab (stop the watch with Ctrl+C first):
 
 ```bash
-while true; do curl -s --max-time 1 localhost:30080/ || echo "FAILED $(date +%T)"; sleep 0.2; done
+while true; do curl -s --max-time 1 localhost:30080/ || echo "FAILED $(date +%T)"; sleep 0.5; done
 ```
 
 Roll out v2 in the first tab:

@@ -18,13 +18,7 @@
   --mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --paper: #0f161c; --panel: #172129; --ink: #e5ebee; --muted: #92a2ad; --line: #27343d;
-    --accent: #85a8ff; --accent-soft: #1d2b4a; --ok: #4cc28d; --warn: #e2a64a; --bad: #f07a72;
-    color-scheme: dark;
-  }
-}
+/* Light by default, whatever the OS setting. T switches to dark. */
 :root[data-theme="dark"] {
   --paper: #0f161c; --panel: #172129; --ink: #e5ebee; --muted: #92a2ad; --line: #27343d;
   --accent: #85a8ff; --accent-soft: #1d2b4a; --ok: #4cc28d; --warn: #e2a64a; --bad: #f07a72;
@@ -41,12 +35,14 @@ body {
 }
 
 /* Stage */
-.viewport { position: fixed; inset: 0; display: grid; place-items: center; }
+/* The stage is always laid out at 1600x900 and centred on the window; deck.js scales it
+   down (or up) to fit, so a small laptop or a phone sees the whole slide. */
+.viewport { position: fixed; inset: 0; overflow: hidden; }
 .stage {
   width: 1600px; height: 900px;
-  position: relative;
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
   transform-origin: center center;
-  flex: none;
 }
 .slide {
   position: absolute; inset: 0;
@@ -122,6 +118,8 @@ table { border-collapse: collapse; font-size: 28px; width: 100%; }
 th { text-align: left; font: 600 19px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 0 24px 14px 0; border-bottom: 2px solid var(--line); }
 td { padding: 14px 24px 14px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
 table.kubectl td { font-family: var(--mono); font-size: 25px; }
+table.fields { font-size: 24px; line-height: 1.35; }
+table.fields td:first-child { white-space: nowrap; }
 table.kubectl td.t-talk { color: var(--ink); }
 table.kubectl td.t-lab { color: var(--accent); font-weight: 600; }
 table.kubectl td.t-break { color: var(--warn); }
@@ -148,6 +146,17 @@ table.kubectl td.t-break { color: var(--warn); }
   position: absolute; top: 9px; left: 18px;
   font: 600 17px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
 }
+/* Clickable diagram: buttons styled as boxes, and a panel that explains the selected one */
+button.box, button.label { font-family: inherit; color: inherit; cursor: pointer; }
+button.box:hover, button.label:hover { border-color: var(--accent); }
+button.box.selected { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+button.label { background: var(--paper); border: 0; padding: 0 6px; margin-left: -6px; }
+button.label.selected, button.label:hover { color: var(--accent); }
+.info { min-height: 215px; border-top: 2px solid var(--line); padding-top: 18px; font-size: 24px; line-height: 1.4; }
+.info h3 { margin: 0 0 6px; font-size: 30px; }
+.info p { margin: 0 0 12px; max-width: 62em; }
+.info .hint { color: var(--muted); }
+.info .cmd { font-size: 21px; }
 .arrow { font: 400 40px var(--mono); color: var(--muted); flex: none; }
 .arrow.v { text-align: center; }
 .pill { display: inline-block; font: 600 20px var(--mono); padding: 4px 12px; border-radius: 999px; background: var(--panel); color: var(--muted); }
@@ -194,7 +203,7 @@ aside.notes { display: none; }
 
 body.overview { overflow: auto; }
 body.overview .viewport { position: static; display: block; padding: 24px; }
-body.overview .stage { width: auto; height: auto; transform: none !important; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
+body.overview .stage { position: static; width: auto; height: auto; transform: none !important; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
 body.overview .slide {
   position: relative; inset: auto; opacity: 1; visibility: visible;
   width: 1600px; height: 900px; transform: scale(.2); transform-origin: top left;

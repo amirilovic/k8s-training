@@ -33,7 +33,7 @@
   function fit() {
     if (document.body.classList.contains("overview")) return;
     const scale = Math.min(window.innerWidth / 1600, window.innerHeight / 900);
-    stage.style.transform = `scale(${scale})`;
+    stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
   }
 
   function show(i, push = true) {
@@ -58,9 +58,7 @@
 
   function toggleTheme() {
     const root = document.documentElement;
-    const dark = root.dataset.theme
-      ? root.dataset.theme === "dark"
-      : matchMedia("(prefers-color-scheme: dark)").matches;
+    const dark = root.dataset.theme === "dark";
     root.dataset.theme = dark ? "light" : "dark";
     try { localStorage.setItem("deck-theme", root.dataset.theme); } catch (e) { /* storage blocked */ }
   }
@@ -106,8 +104,17 @@
       if (slide) { show(slides.indexOf(slide)); toggleOverview(); }
       return;
     }
-    if (e.target.closest("a, pre, code") || getSelection().toString()) return;
+    if (e.target.closest("a, pre, code, button, .info") || getSelection().toString()) return;
     show(e.clientX > window.innerWidth / 2 ? index + 1 : index - 1);
+  });
+
+  // Clickable diagrams: a [data-info] button shows the matching [data-for] block in its slide's .info panel.
+  stage.querySelectorAll("[data-info]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const slide = btn.closest(".slide");
+      slide.querySelectorAll("[data-info]").forEach((b) => b.classList.toggle("selected", b === btn));
+      slide.querySelectorAll(".info [data-for]").forEach((p) => { p.hidden = p.dataset.for !== btn.dataset.info; });
+    });
   });
 
   let touchX = null;

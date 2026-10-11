@@ -15,11 +15,13 @@ Catch-up: `kubectl apply -f ~/k8s-training/solutions/02-deployments/`
 
 ### 1. Generate a Deployment
 
+Use a dry run, as at the end of Lab 1:
+
 ```bash
-kubectl create deployment web --image=ghcr.io/amirilovic/k8s-training-app:v1 --replicas=3 --port=8080 --dry-run=client -o yaml
+kubectl create deployment web --image=ghcr.io/amirilovic/k8s-training-app:v1 --replicas=3 --port=8080 --dry-run=client -o yaml > deployment.yaml
 ```
 
-Save a cleaned-up version as `deployment.yaml`:
+Edit `deployment.yaml` until it matches this. Remove both `creationTimestamp` lines, `strategy: {}`, `resources: {}` and `status: {}`, and rename the container from `k8s-training-app` to `web`; later steps refer to it by that name.
 
 ```yaml
 apiVersion: apps/v1
@@ -45,13 +47,23 @@ spec:
 
 ### 2. Apply it and look at what it created
 
+In the second tab, watch the pods:
+
+```bash
+kubectl get pods -w
+```
+
+In the first tab:
+
 ```bash
 kubectl apply -f deployment.yaml
 kubectl rollout status deployment/web
 kubectl get deployment,replicaset,pods -o wide
 ```
 
-You wrote one object and got three kinds: the Deployment created a ReplicaSet, and the ReplicaSet created 3 pods. The pod names are `<deployment>-<replicaset hash>-<random>`. Look at the `NODE` column: the scheduler spread the pods over the two workers.
+The watch shows 3 pods appear and start. You wrote one object and got three kinds: the Deployment created a ReplicaSet, and the ReplicaSet created 3 pods. The pod names are `<deployment>-<replicaset hash>-<random>`. The `NODE` column shows where the scheduler put each pod. Usually they are spread over both workers, but nothing forces that.
+
+From now on you change the app by editing `deployment.yaml` and running `apply` again. Change the image in the file, apply, and Kubernetes rolls out the new version.
 
 ### 3. Delete a pod and watch it come back
 
@@ -84,23 +96,13 @@ kubectl apply -f deployment.yaml
 
 The file is the truth. `kubectl scale` is handy, but the next `apply` wins.
 
-### 5. Make the app reachable from your machine
+### 5. Roll out v2
 
-Services are tomorrow's topic. For now, apply a ready-made one so you can watch the next steps from outside the cluster:
-
-```bash
-kubectl apply -f ~/k8s-training/labs/02-deployments/service.yaml
-```
-
-Open `http://localhost:30080` in the browser. In the second tab (stop the watch with Ctrl+C), start a loop that calls the app 5 times a second and prints `FAILED` when a request fails:
+In the second tab, watch the pods:
 
 ```bash
-while true; do curl -s --max-time 1 localhost:30080/ || echo "FAILED $(date +%T)"; sleep 0.2; done
+kubectl get pods -w
 ```
-
-Leave it running. You see the pod name change between requests: the Service spreads them over the 3 pods.
-
-### 6. Roll out v2
 
 In the first tab:
 
@@ -109,16 +111,11 @@ kubectl set image deployment/web web=ghcr.io/amirilovic/k8s-training-app:v2
 kubectl rollout status deployment/web
 ```
 
-`web=` is the container name inside the pod. Watch the loop: `version: v1` turns into `version: v2` as pods are replaced one at a time. You will probably also see a few `FAILED` lines. Two reasons:
-
-- A new pod gets traffic as soon as its container starts, but the app needs 3 seconds before it listens.
-- An old pod stops listening the moment it gets the stop signal, while the Service may still send it requests for a moment.
-
-Kubernetes cannot know when your app is really ready. You tell it with a readiness probe in Lab 6, and then this rollout drops nothing.
+`web=` is the container name inside the pod. The watch shows the rolling update: a new pod starts, and once it runs an old one terminates, one at a time, until all 3 are new. The new pods belong to a new ReplicaSet, so their names have a different hash.
 
 Update `image:` in `deployment.yaml` to `v2` too, so your file matches the cluster.
 
-### 7. Look at the history
+### 6. Look at the history
 
 ```bash
 kubectl rollout history deployment/web
@@ -127,7 +124,7 @@ kubectl get replicasets
 
 Every rollout created a new ReplicaSet. The old one is kept with 0 pods, so a rollback is quick.
 
-### 8. Release a broken version
+### 7. Release a broken version
 
 ```bash
 kubectl set image deployment/web web=ghcr.io/amirilovic/k8s-training-app:v3-broken
@@ -135,11 +132,11 @@ kubectl annotate deployment/web kubernetes.io/change-cause="release v3-broken" -
 kubectl get pods -w
 ```
 
-Watch the curl loop: within a minute everything fails. The pods show `Error`, then `CrashLoopBackOff`. Every healthy v1 pod was replaced by one that crashes, so the app is down.
+Within a minute the pods show `Error`, then `CrashLoopBackOff`. Every healthy v2 pod was replaced by one that crashes, so the app is down.
 
-Why did the rollout not stop? Without a readiness probe, a pod counts as available as soon as its container starts. The broken pod started, looked fine for half a second, and the rollout moved on.
+Why did the rollout not stop? Kubernetes only knows that the container started. The broken pod started, looked fine for half a second, and the rollout moved on. On Tuesday you teach Kubernetes to check the app itself.
 
-### 9. Find out why
+### 8. Find out why
 
 ```bash
 kubectl get pods
@@ -155,7 +152,7 @@ FATAL: ConnectionStrings:Default is not set. Set the ConnectionStrings__Default 
 
 In `describe`, `Last State: Terminated, Reason: Error, Exit Code: 1` and a growing `Restart Count`. `CrashLoopBackOff` means Kubernetes keeps restarting the container and waits longer each time (10 s, 20 s, 40 s, up to 5 minutes). If `kubectl logs` shows nothing because the container is between restarts, add `--previous`.
 
-### 10. Roll back
+### 9. Roll back
 
 ```bash
 kubectl rollout undo deployment/web
@@ -163,30 +160,27 @@ kubectl rollout status deployment/web
 kubectl rollout history deployment/web
 ```
 
-`undo` goes back one revision, to v2. The curl loop recovers. In Lab 6 a readiness probe stops a release like this one before it takes down the healthy pods.
-
-Stop the curl loop with Ctrl+C.
+`undo` goes back one revision, to v2. The watch shows healthy pods come back. Stop it with Ctrl+C.
 
 ## Check yourself
 
 ```bash
 kubectl get deployment web
 kubectl get deployment web -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
-curl -s localhost:30080/
 ```
 
-Expected: `READY 3/3`, the image ends in `:v2`, and the curl answers with `version: v2`.
+Expected: `READY 3/3`, and the image ends in `:v2`.
 
 ## Finished early?
 
-- Roll back to a specific revision: `kubectl rollout history deployment/web`, then `kubectl rollout undo deployment/web --to-revision=1`. Check the version with curl.
-- Change how fast a rollout goes. Add this under `spec:` in `deployment.yaml`, apply, and roll out again while the loop runs:
+- Roll back to a specific revision: `kubectl rollout history deployment/web`, then `kubectl rollout undo deployment/web --to-revision=1`. Check the image with `kubectl get deployment web -o wide`.
+- Change how fast a rollout goes. Add this under `spec:` in `deployment.yaml`, apply, and roll out again while `kubectl get pods -w` runs:
 
   ```yaml
   strategy:
     rollingUpdate:
       maxSurge: 3          # create up to 3 extra pods at once
-      maxUnavailable: 0    # never go below 3 ready pods
+      maxUnavailable: 0    # never go below 3 running pods
   ```
 
 - Build your own version of the app. The source is in `~/k8s-training/app`:
@@ -197,4 +191,4 @@ Expected: `READY 3/3`, the image ends in `:v2`, and the curl answers with `versi
   kubectl set image deployment/web web=k8s-training-app:mine
   ```
 
-  `kind load` copies the image from your Docker into the cluster's nodes, so no registry is needed. Change the default greeting in `app/appsettings.json` first if you want to see your change in the browser.
+  `kind load` copies the image from your Docker into the cluster's nodes, so no registry is needed. Change the default greeting in `app/appsettings.json` first, then open the app with `kubectl port-forward deployment/web 8080:8080` and `http://localhost:8080` to see your change.

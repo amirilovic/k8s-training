@@ -20,12 +20,11 @@
   <table class="kubectl">
     <tr><th>Time</th><th>Name</th><th>Type</th><th>Duration</th></tr>
     <tr><td>09:00</td><td>Recap, recreate yesterday's Deployment</td><td class="t-talk">talk</td><td>15m</td></tr>
-    <tr><td>09:15</td><td>Services and DNS</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>09:35</td><td>Ingress</td><td class="t-talk">talk</td><td>10m</td></tr>
-    <tr><td>09:45</td><td>Configuration</td><td class="t-talk">talk</td><td>20m</td></tr>
-    <tr><td>10:05</td><td>Probes</td><td class="t-talk">talk</td><td>15m</td></tr>
-    <tr><td>10:20</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
-    <tr><td>10:35</td><td>Lab block: Labs 3 to 6</td><td class="t-lab">lab</td><td>135m</td></tr>
+    <tr><td>09:15</td><td>Services and DNS, Ingress</td><td class="t-talk">talk</td><td>30m</td></tr>
+    <tr><td>09:45</td><td>Lab block: Labs 3 and 4</td><td class="t-lab">lab</td><td>65m</td></tr>
+    <tr><td>10:50</td><td>Break</td><td class="t-break">break</td><td>15m</td></tr>
+    <tr><td>11:05</td><td>Configuration, probes</td><td class="t-talk">talk</td><td>35m</td></tr>
+    <tr><td>11:40</td><td>Lab block: Labs 5 and 6</td><td class="t-lab">lab</td><td>70m</td></tr>
     <tr><td>12:50</td><td>Recap and questions</td><td class="t-talk">talk</td><td>10m</td></tr>
   </table>
 </section>
@@ -36,14 +35,14 @@
     <ul class="points">
       <li>You delete a pod of a Deployment. What happens, and which object makes it happen?</li>
       <li>What is the difference between a ReplicaSet and a Deployment?</li>
-      <li>Why did the rollout to <code>v2</code> drop requests?</li>
+      <li>Why did <code>v3-broken</code> take down every pod?</li>
       <li>Where does <code>rollout undo</code> take you after v1, v2, v3-broken?</li>
     </ul>
     <pre class="term"><span class="c"># back to where Lab 2 ended</span>
 kubectl apply -f solutions/02-deployments/
 kubectl get deployment,pods</pre>
   </div>
-  <aside class="notes"><ul><li>Answers: the ReplicaSet controller creates a replacement; the ReplicaSet keeps a count, the Deployment manages versions; no readiness probe so a starting pod got traffic; undo goes to v2, the previous revision.</li><li>Anyone whose cluster is gone: kind delete cluster --name training, setup/create-cluster.sh, then the apply above.</li></ul></aside>
+  <aside class="notes"><ul><li>Answers: the ReplicaSet controller creates a replacement; the ReplicaSet keeps a count, the Deployment manages versions; Kubernetes only knew the containers started, so the rollout carried on; undo goes to v2, the previous revision.</li><li>Anyone whose cluster is gone: kind delete cluster --name training, setup/create-cluster.sh, then the apply above.</li></ul></aside>
 </section>
 
 <section class="slide section" data-time="09:15" data-kind="talk">
@@ -94,11 +93,12 @@ kubectl delete pod web-848b…-cg4bh
   <h2>Service types</h2>
   <table>
     <tr><th>Type</th><th>Reachable from</th><th>Used for</th></tr>
-    <tr><td><code>ClusterIP</code></td><td>inside the cluster only</td><td>almost every Service; the default</td></tr>
-    <tr><td><code>NodePort</code></td><td>every node, on a port 30000–32767</td><td>labs, and as the plumbing under ingress controllers</td></tr>
-    <tr><td><code>LoadBalancer</code></td><td>a cloud load balancer in front of the nodes</td><td>ingress controllers in the cloud</td></tr>
+    <tr><td><code>ClusterIP</code></td><td>inside the cluster only</td><td>apps calling each other. The default.</td></tr>
+    <tr><td><code>NodePort</code></td><td>every node, on a port 30000–32767</td><td>reaching an app from outside without a cloud. Our labs use it.</td></tr>
+    <tr><td><code>LoadBalancer</code></td><td>a cloud load balancer in front of the nodes</td><td>a public address in AWS or Azure, mostly for TCP and UDP traffic. HTTP usually goes through an Ingress.</td></tr>
   </table>
-  <p class="small">In real clusters, apps use ClusterIP and outside traffic comes in through an Ingress, the next talk. NodePort is the shortcut to your browser.</p>
+  <p class="small">In real clusters, almost every app has a ClusterIP Service. Traffic from outside comes in through an Ingress, the next talk.</p>
+  <aside class="notes"><ul><li>The Ingress controller is itself a Service: LoadBalancer in the cloud, NodePort 30081 in our kind cluster. That is the only Service exposed to the outside.</li></ul></aside>
 </section>
 
 <section class="slide" data-time="09:15" data-kind="talk">
@@ -199,7 +199,7 @@ spec:
       <pre>metadata:
   annotations:
     kubernetes.io/ingress.class: alb</pre>
-      <p class="small">Most Ingresses in Epic's clusters still use the annotation, with AWS ALB or Traefik as the controller.</p>
+      <p class="small">Many existing Ingresses still use the annotation, for example with AWS ALB or Traefik as the controller.</p>
     </div>
   </div>
 </section>
@@ -234,12 +234,68 @@ spec:
   <p class="small">This makes ASP.NET Core read the <code>X-Forwarded-For</code> and <code>X-Forwarded-Proto</code> headers the proxy adds.</p>
 </section>
 
-<section class="slide section" data-time="09:45" data-kind="talk">
+<section class="slide lab" data-time="09:45" data-kind="lab">
+  <div class="eyebrow">Lab block · 65 minutes</div>
+  <h2>Labs 3 and 4</h2>
+  <div class="cols">
+    <table class="kubectl">
+      <tr><th>Start by</th><th>Lab</th></tr>
+      <tr><td>09:45</td><td>Lab 3: Services</td></tr>
+      <tr><td>10:25</td><td>Lab 4: Ingress</td></tr>
+      <tr><td>10:50</td><td>Break</td></tr>
+    </table>
+    <ul class="points">
+      <li>Still on a lab at the next start time? Apply its solution from <code>solutions/</code> and move on.</li>
+      <li>Finished early? Each README ends with extras.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Walk the room. At 10:25, check who is still on Lab 3 and point them at the catch-up command at the top of Lab 4.</li></ul></aside>
+</section>
+
+<section class="slide lab" data-time="09:45" data-kind="lab">
+  <div class="eyebrow">Lab 3 · 40 minutes · from 09:45</div>
+  <h2>Services</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Build a ClusterIP Service and call it by name from a throwaway pod.</li>
+      <li>Break the selector and watch the endpoints disappear.</li>
+      <li>Change it to NodePort 30080 and open it in the Windows browser.</li>
+      <li>Watch the pod name change with a curl loop.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/03-services/README.md</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide lab" data-time="10:25" data-kind="lab">
+  <div class="eyebrow">Lab 4 · 25 minutes · from 10:25</div>
+  <h2>Ingress</h2>
+  <div class="cols">
+    <ul class="points">
+      <li>Install Traefik with <code>kubectl apply -f setup/traefik.yaml</code>.</li>
+      <li>Route <code>app.localhost</code> to the app and <code>v2.localhost</code> to v2.</li>
+      <li>Open both at <code>:30081</code> in the Windows browser.</li>
+      <li>Compare <code>ingressClassName</code> with the old annotation.</li>
+      <li>Read a real ALB Ingress and its annotations.</li>
+    </ul>
+    <div class="stack">
+      <div class="path">labs/04-ingress/README.md</div>
+    </div>
+  </div>
+</section>
+
+<section class="slide break" data-time="10:50" data-kind="break">
+  <h2>Break</h2>
+  <p class="lead">Back at 11:05.</p>
+</section>
+
+<section class="slide section" data-time="11:05" data-kind="talk">
   <div class="eyebrow">20 minutes · talk</div>
   <h2>Configuration</h2>
 </section>
 
-<section class="slide" data-time="09:45" data-kind="talk">
+<section class="slide" data-time="11:05" data-kind="talk">
   <h2>One image, every environment</h2>
   <div class="cols">
     <ul class="points">
@@ -255,7 +311,61 @@ spec:
   </div>
 </section>
 
-<section class="slide" data-time="09:45" data-kind="talk">
+<section class="slide" data-time="11:05" data-kind="talk">
+  <h2>A ConfigMap in YAML</h2>
+  <div class="cols wide-left">
+    <pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: ConfigMap
+<span class="k">metadata</span>:
+  name: web-config
+<span class="k">data</span>:
+  appsettings.json: |
+    {
+      "Greeting": {
+        "Text": "Hello from a ConfigMap"
+      }
+    }</pre>
+    <div class="stack">
+    <table class="fields">
+      <tr><td><code>data</code></td><td>Keys and values. A value can be a whole file.</td></tr>
+      <tr><td><code>|</code></td><td>Keeps the lines below exactly as written.</td></tr>
+      <tr><td>mounted</td><td>Each key becomes a file: <code>/config/appsettings.json</code>.</td></tr>
+    </table>
+    <pre class="term">kubectl create configmap web-config \
+  --from-file=appsettings.json \
+  --dry-run=client -o yaml</pre>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>No spec and no status: a ConfigMap is data, nothing runs.</li><li>The same dry-run trick as yesterday, this time with --from-file. Lab 5 generates this file that way.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:05" data-kind="talk">
+  <h2>A Secret in YAML</h2>
+  <div class="cols wide-left">
+    <div class="stack">
+    <pre><span class="k">apiVersion</span>: v1
+<span class="k">kind</span>: Secret
+<span class="k">metadata</span>:
+  name: web-secrets
+<span class="k">type</span>: Opaque
+<span class="k">data</span>:
+  Secrets__ApiKey: dHJhaW5pbmctYXBpLWtleS0xMjM0</pre>
+    <pre class="term">kubectl create secret generic web-secrets \
+  --from-literal=Secrets__ApiKey=training-api-key-1234 \
+  --dry-run=client -o yaml</pre>
+    </div>
+    <div class="stack">
+    <table class="fields">
+      <tr><td><code>type</code></td><td><code>Opaque</code> means any keys you like. Other types hold TLS certificates or registry logins.</td></tr>
+      <tr><td><code>data</code></td><td>Values are base64, not encrypted. <code>base64 -d</code> reads them.</td></tr>
+      <tr><td><code>stringData</code></td><td>Write plain text instead. Kubernetes encodes it for you.</td></tr>
+    </table>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Decode it live: echo dHJhaW5pbmctYXBpLWtleS0xMjM0 | base64 -d prints training-api-key-1234.</li><li>Never commit a real Secret to git. In production the values come from a secret store, covered on "Two things that surprise .NET developers".</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:05" data-kind="talk">
   <h2>How it reaches .NET configuration</h2>
   <div class="cols wide-right">
     <div class="diagram col">
@@ -274,7 +384,7 @@ spec:
   <aside class="notes"><ul><li>This is the training app's actual provider order, see app/Program.cs. In a default ASP.NET Core app you add the /config and /secrets providers yourself.</li></ul></aside>
 </section>
 
-<section class="slide" data-time="09:45" data-kind="talk">
+<section class="slide" data-time="11:05" data-kind="talk">
   <h2>Mounting a ConfigMap and a Secret</h2>
   <div class="cols wide-left">
     <pre>    spec:
@@ -303,7 +413,7 @@ spec:
   </div>
 </section>
 
-<section class="slide" data-time="09:45" data-kind="talk">
+<section class="slide" data-time="11:05" data-kind="talk">
   <h2>Two things that surprise .NET developers</h2>
   <div class="cols">
     <div class="stack">
@@ -319,12 +429,27 @@ spec:
   </div>
 </section>
 
-<section class="slide section" data-time="10:05" data-kind="talk">
+<section class="slide section" data-time="11:25" data-kind="talk">
   <div class="eyebrow">15 minutes · talk</div>
   <h2>Probes</h2>
 </section>
 
-<section class="slide" data-time="10:05" data-kind="talk">
+<section class="slide" data-time="11:25" data-kind="talk">
+  <h2>Kubernetes cannot see inside your app</h2>
+  <div class="cols">
+    <div class="stack">
+      <p>Without a readiness probe, a new pod counts as ready as soon as its container starts.</p>
+      <p>Our app waits 3 seconds before it listens. Kubernetes sends it traffic anyway.</p>
+      <p class="small">A broken release (<code>v3-broken</code> exits on startup) passes this test too, for a moment. In Lab 2 it replaced every healthy pod.</p>
+    </div>
+    <div class="figure">
+      <div><div class="n bad">9</div><div class="cap">failed requests out of 339 during a rollout from v1 to v2, no probes</div></div>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>Measured on kind with a curl loop every 100 ms. They count their own failures in step 1 of Lab 6.</li><li>The last slide of this talk shows the same rollout with probes: 0 failures.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:25" data-kind="talk">
   <h2>Three probes, three different reactions</h2>
   <table>
     <tr><th>Probe</th><th>Question</th><th>When it fails</th></tr>
@@ -338,7 +463,7 @@ spec:
   </ul>
 </section>
 
-<section class="slide" data-time="10:05" data-kind="talk">
+<section class="slide" data-time="11:25" data-kind="talk">
   <h2>.NET health checks map onto probes</h2>
   <div class="cols wide-left">
     <pre>builder.Services.AddHealthChecks()
@@ -360,10 +485,10 @@ readinessProbe:
   </div>
 </section>
 
-<section class="slide" data-time="10:05" data-kind="talk">
+<section class="slide" data-time="11:25" data-kind="talk">
   <h2>The same rollout, with probes</h2>
   <div class="figure">
-    <div><div class="n bad">9</div><div class="cap">failed of 339 requests, v1 to v2, no probes (Monday)</div></div>
+    <div><div class="n bad">9</div><div class="cap">failed of 339 requests, v1 to v2, no probes</div></div>
     <div><div class="n ok">0</div><div class="cap">failed of 366 requests, with a readiness probe and a 5 s preStop pause</div></div>
   </div>
   <ul class="points">
@@ -373,19 +498,30 @@ readinessProbe:
   <aside class="notes"><ul><li>Both numbers measured on kind with the training app. The preStop pause covers the gap between the pod being marked for deletion and every node updating its routing.</li><li>Lab 6's extra repeats v3-broken with probes: the rollout stops at one crashing pod and the old pods keep serving.</li></ul></aside>
 </section>
 
-<section class="slide break" data-time="10:20" data-kind="break">
-  <h2>Break</h2>
-  <p class="lead">Back at 10:35 for the lab block.</p>
+<section class="slide" data-time="11:25" data-kind="talk">
+  <h2>.NET: stopping cleanly</h2>
+  <div class="diagram">
+    <div class="box">pod marked for deletion<small>preStop pause runs first</small></div>
+    <div class="arrow">→</div>
+    <div class="box accent">SIGTERM<small>.NET host starts shutdown</small></div>
+    <div class="arrow">→</div>
+    <div class="box">in-flight requests finish<small>HostOptions.ShutdownTimeout</small></div>
+    <div class="arrow">→</div>
+    <div class="box bad">SIGKILL<small>after 30 s grace period</small></div>
+  </div>
+  <ul class="points">
+    <li>The generic host handles SIGTERM for you. Look for "SIGTERM received" in the training app's logs.</li>
+    <li>Everything must fit in <code>terminationGracePeriodSeconds</code>, 30 s by default: the <code>preStop</code> pause plus the .NET shutdown. .NET 8 also waits up to 30 s, so with a 5 s pause set <code>HostOptions.ShutdownTimeout</code> below 25 s.</li>
+    <li>Long background work needs <code>stoppingToken</code> checks, or it is killed halfway.</li>
+  </ul>
 </section>
 
-<section class="slide lab" data-time="10:35" data-kind="lab">
-  <div class="eyebrow">Lab block · 135 minutes</div>
-  <h2>Labs 3 to 6</h2>
+<section class="slide lab" data-time="11:40" data-kind="lab">
+  <div class="eyebrow">Lab block · 70 minutes</div>
+  <h2>Labs 5 and 6</h2>
   <div class="cols">
     <table class="kubectl">
       <tr><th>Start by</th><th>Lab</th></tr>
-      <tr><td>10:35</td><td>Lab 3: Services</td></tr>
-      <tr><td>11:15</td><td>Lab 4: Ingress</td></tr>
       <tr><td>11:40</td><td>Lab 5: ConfigMaps and Secrets</td></tr>
       <tr><td>12:25</td><td>Lab 6: Probes</td></tr>
       <tr><td>12:50</td><td>Recap</td></tr>
@@ -393,44 +529,9 @@ readinessProbe:
     <ul class="points">
       <li>Still on a lab at the next start time? Apply its solution from <code>solutions/</code> and move on.</li>
       <li>Finished early? Each README ends with extras.</li>
-      <li>Take a break whenever you want.</li>
     </ul>
   </div>
-  <aside class="notes"><ul><li>Walk the room. At each start time, check who is behind and point them at the catch-up command at the top of the next README.</li></ul></aside>
-</section>
-
-<section class="slide lab" data-time="10:35" data-kind="lab">
-  <div class="eyebrow">Lab 3 · 40 minutes · from 10:35</div>
-  <h2>Services</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Build a ClusterIP Service and call it by name from a throwaway pod.</li>
-      <li>Break the selector and watch the endpoints disappear.</li>
-      <li>Change it to NodePort 30080 and open it in the Windows browser.</li>
-      <li>Watch the pod name change with a curl loop.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/03-services/README.md</div>
-      <p class="small">Starts by deleting the ready-made Service from Lab 2.</p>
-    </div>
-  </div>
-</section>
-
-<section class="slide lab" data-time="11:15" data-kind="lab">
-  <div class="eyebrow">Lab 4 · 25 minutes · from 11:15</div>
-  <h2>Ingress</h2>
-  <div class="cols">
-    <ul class="points">
-      <li>Install Traefik with <code>kubectl apply -f setup/traefik.yaml</code>.</li>
-      <li>Route <code>app.localhost</code> to the app and <code>v2.localhost</code> to v2.</li>
-      <li>Open both at <code>:30081</code> in the Windows browser.</li>
-      <li>Compare <code>ingressClassName</code> with the old annotation.</li>
-      <li>Read a real ALB Ingress and its annotations.</li>
-    </ul>
-    <div class="stack">
-      <div class="path">labs/04-ingress/README.md</div>
-    </div>
-  </div>
+  <aside class="notes"><ul><li>Walk the room. At 12:25, check who is still on Lab 5 and point them at the catch-up command at the top of Lab 6.</li></ul></aside>
 </section>
 
 <section class="slide lab" data-time="11:40" data-kind="lab">
@@ -455,11 +556,11 @@ readinessProbe:
   <h2>Probes</h2>
   <div class="cols">
     <ul class="points">
+      <li>Restart the app with a curl loop running. Count the failures.</li>
       <li>Add readiness and liveness probes.</li>
       <li><code>/admin/unready</code>: the pod leaves the Service but keeps running.</li>
-      <li><code>/admin/hang</code>: the liveness probe restarts it.</li>
-      <li><code>/admin/crash</code>: the container restarts and the count goes up.</li>
-      <li>Repeat Monday's rollout. Count the failures again.</li>
+      <li><code>/admin/hang</code> and <code>/admin/crash</code>: the container restarts.</li>
+      <li>Add a <code>preStop</code> pause and roll out again: no failures.</li>
     </ul>
     <div class="stack">
       <div class="path">labs/06-probes/README.md</div>
@@ -483,6 +584,7 @@ readinessProbe:
     </div>
   </div>
 </section>
+
 
 
 </div></div>

@@ -161,7 +161,7 @@ spec:
   ingressClassName: traefik
 ```
 
-Older manifests use an annotation instead. Most Ingresses in Epic's clusters still do:
+Older manifests use an annotation instead, and many existing charts still do:
 
 ```yaml
 metadata:

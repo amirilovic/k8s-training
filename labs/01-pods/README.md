@@ -1,6 +1,6 @@
 # Lab 1: kubectl, namespaces and Pods
 
-You get to know `kubectl`, find the control plane from the architecture talk, create your own namespace, and run the training app as a single Pod. You will see that a Pod on its own is not much better than `docker run`: delete it and it is gone. About 50 minutes.
+You get to know `kubectl`, find the control plane from the architecture talk, create your own namespace, and run the training app as a single Pod. You create a pod with one command, read it back as YAML, then recreate it from a file with `apply`. You will also see that a Pod on its own is not much better than `docker run`: delete it and it is gone. About 50 minutes.
 
 ## Before you start
 
@@ -68,15 +68,43 @@ kubectl explain pod.spec.containers
 kubectl explain pod.spec.containers.ports
 ```
 
-### 5. Generate YAML instead of writing it
-
-Writing YAML from memory leads to indentation errors. Let `kubectl` write the first draft:
+### 5. Create a pod with one command
 
 ```bash
-kubectl run web --image=ghcr.io/amirilovic/k8s-training-app:v1 --port=8080 --dry-run=client -o yaml
+kubectl run web --image=ghcr.io/amirilovic/k8s-training-app:v1 --port=8080 --labels=app=web
+kubectl get pods -o wide
 ```
 
-`--dry-run=client` means "do not create anything, just show me". Save a cleaned-up version as `pod.yaml`:
+`kubectl run` sent a Pod to the API server. `-o wide` shows the pod's IP and the node it runs on. The scheduler chose that node.
+
+### 6. Look at it as YAML
+
+Everything in the cluster is an object you can read back as YAML:
+
+```bash
+kubectl get pod web -o yaml
+```
+
+About 130 lines for a one-line command. Find three parts: `spec`, what you asked for, with many defaults filled in; `spec.nodeName`, the scheduler's choice; and `status`, written by the kubelet.
+
+### 7. Delete it
+
+```bash
+kubectl delete pod web
+kubectl get pods
+```
+
+It is gone, and nothing brings it back. A bare Pod has no one watching over it.
+
+### 8. Generate a file with a dry run
+
+Writing YAML from memory leads to indentation errors. Let `kubectl` write the first draft with the same command:
+
+```bash
+kubectl run web --image=ghcr.io/amirilovic/k8s-training-app:v1 --port=8080 --labels=app=web --dry-run=client -o yaml > pod.yaml
+```
+
+`--dry-run=client` makes `kubectl` build the Pod but never send it to the cluster, and `-o yaml` prints it. You get a correct manifest without creating anything. Open `pod.yaml` (`code pod.yaml`) and remove `creationTimestamp`, `resources: {}`, `dnsPolicy`, `restartPolicy` and `status: {}`, so it matches this:
 
 ```yaml
 apiVersion: v1
@@ -93,16 +121,51 @@ spec:
         - containerPort: 8080   # documentation only: the app listens on 8080, not 80
 ```
 
-### 6. Run it
+The indentation of the list under `containers` differs from what `kubectl` printed. Both are valid YAML.
+
+### 9. Create it from the file
+
+Open a second Ubuntu tab (Windows Terminal: Ctrl+Shift+T, then pick Ubuntu 26.04) and watch the pods there:
+
+```bash
+kubectl get pods -w
+```
+
+In the first tab:
 
 ```bash
 kubectl apply -f pod.yaml
-kubectl get pods -o wide
 ```
 
-`-o wide` shows the pod's IP and the node it runs on. The scheduler chose that node.
+The watch shows `ContainerCreating`, then `Running`. Run the same `apply` again: it prints `pod/web unchanged`.
 
-### 7. The Docker commands you already know
+Why `apply` and a file, instead of `kubectl run`? `kubectl run` is a one-off command: it can create a pod but not change one, and afterwards nobody can tell how the pod was made. `apply` makes the cluster match the file. The first time it creates the object, later it changes only what differs in the file, and when nothing differs it does nothing. The file goes into git, gets reviewed like code, and is the record of what runs. Helm, CI pipelines and GitOps tools all deploy this way. Leave the watch running.
+
+### 10. Change it and apply again
+
+Open `pod.yaml` and change the image tag from `v1` to `v2`. Before you apply, ask the cluster what would change:
+
+```bash
+kubectl diff -f pod.yaml
+```
+
+Among a few bookkeeping fields, the diff shows the image line: `-` for what runs now, `+` for your file. Apply it:
+
+```bash
+kubectl apply -f pod.yaml
+```
+
+This time it prints `pod/web configured`. The watch in the second tab shows the same pod, `web`, restart once. Find out what happened:
+
+```bash
+kubectl get pods
+kubectl describe pod web
+kubectl logs web
+```
+
+`RESTARTS` is 1. At the bottom of `describe`, the events say `Container web definition changed, will be restarted`, followed by a pull of the v2 image. The log starts with `Starting version v2 on pod web`. You changed one line in a file, and `apply` changed the running pod to match. Stop the watch with Ctrl+C.
+
+### 11. The Docker commands you already know
 
 | Docker | kubectl |
 |---|---|
@@ -124,7 +187,7 @@ kubectl describe pod web
 
 The logs show the app starting and what it found (no config file, no secrets, no database). `id` shows `uid=1654(app)`: the .NET image runs as a non-root user. At the bottom of `describe`, the `Events` list what Kubernetes did: scheduled, pulled, created, started. Events are the first place to look when something goes wrong.
 
-### 8. Open the app in your browser
+### 12. Open the app in your browser
 
 ```bash
 kubectl port-forward pod/web 8080:8080
@@ -133,21 +196,12 @@ kubectl port-forward pod/web 8080:8080
 Leave it running and open `http://localhost:8080` in the Windows browser. You should see:
 
 ```
-Hello from Kubernetes | version: v1 | pod: web
+Hello from Kubernetes | version: v2 | pod: web
 ```
 
 Also open `http://localhost:8080/api/info`. Stop the port-forward with Ctrl+C.
 
 Port-forward is a debugging tunnel from your machine to one pod. It is not how users reach an app. That comes with Services in Lab 3.
-
-### 9. Delete the pod
-
-```bash
-kubectl delete pod web
-kubectl get pods
-```
-
-It is gone, and nothing brings it back. A bare Pod has no one watching over it. In Lab 2 a Deployment takes that job.
 
 ## Check yourself
 
@@ -172,6 +226,5 @@ kubectl delete pod web
 
 ## Finished early?
 
-- Change `containerPort` in `pod.yaml` to `9090` and run `kubectl apply -f pod.yaml` again. Read the error: almost every field of a running Pod is fixed, and the image is one of the few exceptions. To change anything else you delete and recreate the Pod. That is one more reason to use Deployments.
-- Look at everything Kubernetes added to your 15-line file: `kubectl get pod web -o yaml`. Find `status.podIP`, `spec.nodeName` and `status.conditions`.
+- Change `containerPort` in `pod.yaml` to `9090` and run `kubectl apply -f pod.yaml` again. Read the error: almost every field of a running Pod is fixed. The image, which you changed in step 10, is one of the few exceptions. To change anything else you delete and recreate the Pod. That is one more reason to use Deployments.
 - Get a shell with tools next to the app without changing its image: `kubectl debug -it web --image=busybox:1.37 --target=web --profile=general -- sh`. Inside, run `wget -qO- localhost:8080/api/info` and `ps`. This is how you debug images that have no shell at all, such as the small "chiseled" .NET images (`mcr.microsoft.com/dotnet/aspnet:10.0-noble-chiseled`).
