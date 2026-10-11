@@ -21,7 +21,14 @@ Use a dry run, as at the end of Lab 1:
 kubectl create deployment web --image=ghcr.io/amirilovic/k8s-training-app:v1 --replicas=3 --port=8080 --dry-run=client -o yaml > deployment.yaml
 ```
 
-Edit `deployment.yaml` until it matches this. Remove both `creationTimestamp` lines, `strategy: {}`, `resources: {}` and `status: {}`, and rename the container from `k8s-training-app` to `web`; later steps refer to it by that name.
+`kubectl create deployment` names the container after the image, `k8s-training-app`. Every later step refers to the container as `web` (`kubectl set image deployment/web web=...`), so rename it now:
+
+```bash
+sed -i.bak 's/name: k8s-training-app/name: web/' deployment.yaml && rm deployment.yaml.bak
+grep "name:" deployment.yaml
+```
+
+Both lines must say `name: web`: the Deployment and the container. Then remove both `creationTimestamp` lines, `strategy: {}`, `resources: {}` and `status: {}`, so the file matches this:
 
 ```yaml
 apiVersion: apps/v1
@@ -111,7 +118,7 @@ kubectl set image deployment/web web=ghcr.io/amirilovic/k8s-training-app:v2
 kubectl rollout status deployment/web
 ```
 
-`web=` is the container name inside the pod. The watch shows the rolling update: a new pod starts, and once it runs an old one terminates, one at a time, until all 3 are new. The new pods belong to a new ReplicaSet, so their names have a different hash.
+`web=` is the container name inside the pod. If you get `unable to find container named "web"`, the container in your file still has its generated name: rename it as in step 1 and apply again. The watch shows the rolling update: a new pod starts, and once it runs an old one terminates, one at a time, until all 3 are new. The new pods belong to a new ReplicaSet, so their names have a different hash.
 
 Update `image:` in `deployment.yaml` to `v2` too, so your file matches the cluster.
 
