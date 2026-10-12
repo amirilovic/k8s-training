@@ -164,6 +164,11 @@ button.label.selected, button.label:hover { color: var(--accent); }
 .pill.bad { color: var(--bad); }
 .pill.warn { color: var(--warn); }
 
+/* Repo link with QR code */
+.repo { display: flex; gap: 24px; align-items: center; }
+.repo img { flex: none; border-radius: 6px; }
+.repo a { font: 500 24px var(--mono); color: var(--accent); }
+
 /* Big number callout */
 .figure { display: flex; gap: 70px; align-items: flex-end; }
 .figure .n { font: 800 150px/0.9 var(--display); letter-spacing: -0.03em; }
