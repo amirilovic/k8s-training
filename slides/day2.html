@@ -482,6 +482,25 @@ spec:
 </section>
 
 <section class="slide" data-time="11:25" data-kind="talk">
+  <h2>Probe settings and their defaults</h2>
+  <div class="cols wide-left">
+    <table class="fields">
+      <tr><td><code>timeoutSeconds</code></td><td><strong>1</strong></td><td>How long one check may take</td></tr>
+      <tr><td><code>periodSeconds</code></td><td><strong>10</strong></td><td>How often it checks</td></tr>
+      <tr><td><code>failureThreshold</code></td><td><strong>3</strong></td><td>Failures in a row before it counts as failed</td></tr>
+      <tr><td><code>successThreshold</code></td><td><strong>1</strong></td><td>Successes in a row to pass again. Must be 1 for liveness and startup.</td></tr>
+      <tr><td><code>initialDelaySeconds</code></td><td><strong>0</strong></td><td>Wait after the container starts before the first check</td></tr>
+    </table>
+    <ul class="points">
+      <li>The same defaults for all three probes.</li>
+      <li>A broken pod is noticed after about 30 s: 3 failures, 10 s apart.</li>
+      <li>Give a startup probe more room, for example <code>failureThreshold: 30</code>.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>The 1-second timeout is the common trap: a /readyz that checks a slow database, or the first request after startup while .NET compiles code, takes longer and the pod flips between ready and not ready. Set timeoutSeconds to 2 to 5 when a check calls a dependency, and keep the check cheap.</li><li>Lab 6 sets periodSeconds: 5 and failureThreshold: 2 for readiness, so a pod leaves the Service about 10 s after /readyz starts failing.</li><li>startupProbe with failureThreshold: 30 and periodSeconds: 2 gives about 60 s to start; liveness keeps its own, quicker settings afterwards.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="11:25" data-kind="talk">
   <h2>.NET health checks map onto probes</h2>
   <div class="cols wide-left">
     <pre>builder.Services.AddHealthChecks()
@@ -597,7 +616,7 @@ readinessProbe:
     </ul>
     <div class="stack">
       <h3>Tomorrow, 09:00 to 15:00</h3>
-      <p>Requests, limits and autoscaling, a debugging lab, Postgres and storage, Helm, and a capstone in pairs.</p>
+      <p>Requests, limits and autoscaling, Jobs and CronJobs, a database on a persistent volume, and a debugging lab to finish.</p>
       <p class="small">Bring lunch plans: tomorrow is the long day, with a 30-minute lunch at 11:30.</p>
     </div>
   </div>

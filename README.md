@@ -27,10 +27,9 @@ Write your own YAML files in `work/`. Git ignores that folder.
 | Tuesday | [Lab 5](labs/05-config/README.md) | ConfigMaps and Secrets |
 | Tuesday | [Lab 6](labs/06-probes/README.md) | Readiness and liveness probes |
 | Wednesday | [Lab 7](labs/07-limits-hpa/README.md) | Requests, limits, Horizontal Pod Autoscaler |
-| Wednesday | [Lab 8](labs/08-debugging/README.md) | Debugging broken deployments |
+| Wednesday | [Lab 8](labs/08-jobs/README.md) | Jobs and CronJobs |
 | Wednesday | [Lab 9](labs/09-database/README.md) | Postgres, PersistentVolumeClaim, migration Job |
-| Wednesday | [Lab 10](labs/10-helm/README.md) | Helm |
-| Wednesday | [Capstone](capstone/README.md) | Everything together, in pairs |
+| Wednesday | [Lab 10](labs/10-debugging/README.md) | Debugging broken deployments |
 
 ## If you fall behind
 
@@ -48,7 +47,6 @@ kubectl apply -f solutions/03-services/
 | `setup/` | kind cluster config, preflight check, metrics-server and Traefik manifests |
 | `labs/` | One folder per lab with instructions |
 | `solutions/` | The end state of each lab |
-| `capstone/` | Capstone task and `check.sh` |
 | `AGENDA.md`, `TRAINER.md` | Participant schedule; the trainer's full plan with timings and prep notes |
 | `slides/` | One HTML deck per day, open `slides/index.html`. Keys: arrows, N notes, O overview, T theme, F fullscreen |
 
@@ -58,4 +56,4 @@ kubectl apply -f solutions/03-services/
 |---|---|
 | `http://localhost:8080` | Whatever you `kubectl port-forward` |
 | `http://localhost:30080` | Your NodePort Service from Lab 3 |
-| `http://<name>.localhost:30081` | Traefik, the ingress controller (Lab 4 onward, capstone) |
+| `http://<name>.localhost:30081` | Traefik, the ingress controller (Lab 4 onward) |

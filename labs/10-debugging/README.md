@@ -1,4 +1,4 @@
-# Lab 8: debugging
+# Lab 10: debugging
 
 Goal: find and fix five broken deployments on your own, using only `kubectl get`, `describe`, `logs` and events. For each one, write down the symptom you saw first, the cause, and the fix.
 
@@ -11,7 +11,7 @@ You need a running cluster. Nothing from earlier labs is needed, and nothing in 
 Create the broken scenarios:
 
 ```bash
-~/k8s-training/labs/08-debugging/setup.sh
+~/k8s-training/labs/10-debugging/setup.sh
 ```
 
 This creates seven namespaces, `debug-1` to `debug-7`. Each one contains a Deployment called `web` and a Service called `web`, and each one is broken in a different way. Scenarios 1 to 5 are the main exercise. Scenarios 6 and 7 are for when you are done.
@@ -98,6 +98,6 @@ done
 ## Clean up
 
 ```bash
-~/k8s-training/labs/08-debugging/cleanup.sh
+~/k8s-training/labs/10-debugging/cleanup.sh
 kubectl config set-context --current --namespace training
 ```

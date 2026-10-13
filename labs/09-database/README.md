@@ -160,7 +160,7 @@ The app reaches the database, but the table does not exist yet. Nobody has appli
 
 ### 4. Apply the migrations with a Job
 
-A Job runs a pod until it finishes successfully, then stops. That fits a database migration: it should run once per release, not continuously.
+A database migration should run once per release, not continuously, so it runs as a Job, as in Lab 8.
 
 The app image has a `migrate` command that applies the EF Core migrations and exits. Create `migrate-job.yaml`:
 
@@ -224,6 +224,6 @@ curl -s http://localhost:30080/        # ends with: visits: <a number>
 ## Finished early?
 
 - Show what the claim protects you from. Copy `postgres.yaml`, replace the `persistentVolumeClaim` volume with `emptyDir: {}`, apply it, run the migration Job again and make a few requests. Then delete the Postgres pod. The table is gone, and the app asks for the migration again. Switch back to the claim afterwards (the old data is still in it).
-- Run the migration Job again. `kubectl apply -f migrate-job.yaml` says `unchanged`, because a finished Job is never run twice. Delete it first: `kubectl delete job migrate`, then apply. The log now says `applied 0 migration(s): none pending`.
-- Write a CronJob that prints the number of visits every minute. Use the `postgres:18-alpine` image, the command `psql -h postgres -U training -d training -c "select count(*) from visits"`, and the environment variable `PGPASSWORD` from the `postgres` Secret (key `POSTGRES_PASSWORD`). Use `schedule: "* * * * *"` and read the output with `kubectl logs` on the pods it creates.
+- Run the migration Job again. As in Lab 8, a finished Job is never run twice, so delete it first: `kubectl delete job migrate`, then apply. The log now says `applied 0 migration(s): none pending`.
+- Write a CronJob, as in Lab 8, that prints the number of visits every minute. Use the `postgres:18-alpine` image, the command `psql -h postgres -U training -d training -c "select count(*) from visits"`, and the environment variable `PGPASSWORD` from the `postgres` Secret (key `POSTGRES_PASSWORD`). Use `schedule: "* * * * *"` and read the output with `kubectl logs` on the pods it creates.
 - Look at the volume on the node: `kubectl get pv`, then `docker exec -it training-worker ls /var/local-path-provisioner` (or `training-worker2`, wherever the pod runs).

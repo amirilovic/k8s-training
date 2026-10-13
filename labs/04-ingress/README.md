@@ -40,7 +40,7 @@ kubectl get ingressclass
 
 You see one Traefik pod, its Service of type NodePort on port 30081, and an IngressClass called `traefik`. Open `http://test.localhost:30081` in the browser: `404 page not found` comes from Traefik. It is running, but no Ingress tells it where to send traffic yet.
 
-`traefik.yaml` is about 270 lines of ordinary Kubernetes objects: a Namespace, a ServiceAccount and RBAC rules, a Deployment, a Service and the IngressClass. Nobody wrote it by hand. It was generated from Traefik's Helm chart, and on Wednesday you will see how.
+`traefik.yaml` is about 270 lines of ordinary Kubernetes objects: a Namespace, a ServiceAccount and RBAC rules, a Deployment, a Service and the IngressClass. Nobody wrote it by hand. It was generated from Traefik's Helm chart. Helm is a package manager that fills in a set of templates with your settings and produces plain manifests like this one.
 
 ### 2. Deploy a second version
 

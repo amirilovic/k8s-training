@@ -1,0 +1,15 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hello
+spec:
+  template:
+    spec:
+      containers:
+        - command:
+            - sh
+            - -c
+            - echo "Hello from a Job on $(hostname)"; sleep 5
+          image: busybox:1.37
+          name: hello
+      restartPolicy: Never

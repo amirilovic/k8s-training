@@ -1,0 +1,19 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: tick
+spec:
+  schedule: "* * * * *"
+  suspend: true
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - command:
+                - sh
+                - -c
+                - date; echo tick
+              image: busybox:1.37
+              name: tick
+          restartPolicy: OnFailure

@@ -1,6 +1,0 @@
-apiVersion: v2
-name: web
-description: The training app with an optional Postgres database
-type: application
-version: 0.1.0
-appVersion: "v1"

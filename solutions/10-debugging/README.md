@@ -1,6 +1,6 @@
-# Lab 8 solutions
+# Lab 10 solutions
 
-Each scenario lives in its own namespace and was created by `labs/08-debugging/setup.sh`. Every fix below was tested.
+Each scenario lives in its own namespace and was created by `labs/10-debugging/setup.sh`. Every fix below was tested.
 
 ## debug-1: image tag that does not exist
 

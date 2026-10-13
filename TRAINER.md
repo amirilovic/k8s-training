@@ -58,7 +58,7 @@ Build one small app that every exercise reuses, so time goes into Kubernetes and
 - `/admin/leak` allocates native memory and touches it until the container is OOMKilled. `/admin/leak?managed=true` allocates `byte[]` instead: the .NET GC caps its heap at 75% of the container limit (96 MB under a 128Mi limit) and throws `OutOfMemoryException`, and the container survives. Both verified on kind.
 - `GET /work?ms=100` burns CPU on the request thread. A busybox loop calling it scaled the HPA from 2 to 6 pods in about 30 seconds.
 - Waits 3 seconds before listening, like a real app warming up, so a rollout without readiness probes visibly drops requests (9 of 339 in testing, 0 with probes and a preStop pause).
-- Reads `/config/appsettings.json` if mounted, `/secrets` as one file per key, and `ConnectionStrings__Default`, and writes a visit counter to Postgres (storage and capstone).
+- Reads `/config/appsettings.json` if mounted, `/secrets` as one file per key, and `ConnectionStrings__Default`, and writes a visit counter to Postgres (Lab 10).
 - `migrate` as a command-line argument applies the EF Core migrations and exits, so the same image serves as the migration Job in Lab 9.
 - `v3-broken` throws on startup when `ConnectionStrings__Default` is missing (CrashLoopBackOff debugging).
 
@@ -94,7 +94,7 @@ Topics cut from the main path and moved to "finished early?" extras: node drain 
 
 ## Lab blocks
 
-Each day the talks come first and the labs follow in a long block: one block on Monday, two on Tuesday (one before and one after the break) and two on Wednesday (one before lunch, one at the end of the day). Participants work through the labs in a block at their own pace and take the break inside a block when they want. You walk the room instead of pulling everyone back to the screen between labs.
+Each day the talks come first and the labs follow in a long block: one block on Monday, two on Tuesday (one before and one after the break), and on Wednesday each talk followed straight away by its lab, with debugging at the end. Participants work through the labs in a block at their own pace and take the break inside a block when they want. You walk the room instead of pulling everyone back to the screen between labs.
 
 Two things keep a long block from drifting:
 
@@ -133,23 +133,27 @@ Goal: the app is reachable from the browser through a Service and an Ingress, ta
 
 Tuesday has two halves: Services and Ingress with their labs before the break, Configuration and Probes with theirs after it. It is still the densest day, with four talks and four labs. The Gateway API is dropped from the Ingress lab; it stays on the "what we did not cover" slide.
 
-## Day 3, Wednesday 09:00 to 15:00: scaling, debugging, state and packaging
+## Day 3, Wednesday 09:00 to 15:00: scaling, jobs, state and debugging
 
-Goal: the app has resource limits and scales under load, participants can debug a broken deployment on their own, the app keeps data in Postgres, and they deploy the whole thing with Helm.
+Goal: the app has resource limits and scales under load, participants can debug a broken deployment on their own, they run work as Jobs and CronJobs, and the app keeps data in Postgres on a persistent volume.
 
 | Time | Block | Type |
 |---|---|---|
 | 09:00 | Recap of Tuesday, questions. Meanwhile everyone runs `kubectl apply -f setup/metrics-server.yaml` so metrics are ready for Lab 7 | 10 min |
 | 09:10 | Requests and limits: what the scheduler does with requests, what happens at a limit (CPU throttled, memory OOMKilled), what Pending means, how the .NET GC and `Environment.ProcessorCount` read the limits | Talk, 15 min |
 | 09:25 | Autoscaling: what the HorizontalPodAutoscaler does, where the numbers come from (metrics-server), CPU usage as a percentage of the pod's CPU *request*, min and max replicas, the 5-minute scale-down wait. What it does not do: add nodes (that is the cluster autoscaler) | Talk, 15 min |
-| 09:40 | Lab block. Lab 7, Limits and HPA: set requests and a 128Mi memory limit, hit `/admin/leak` and see OOMKilled, then `/admin/leak?managed=true` and see the container survive. Create an HPA (min 2, max 6, 50% CPU), start a load pod calling `/work`, watch `kubectl get hpa -w` and `kubectl top pods`, set `stabilizationWindowSeconds: 30` and watch it scale down. Lab 8, Debugging: five broken manifests (wrong image tag, Service selector mismatch, wrong port, missing Secret key, `v3-broken` CrashLoopBackOff) fixed using only `get`, `describe`, `logs` and events, plus two extras (readiness probe on the wrong path, a CPU request no node can satisfy). Checkpoint: 10:30 start Lab 8 | Hands-on, 110 min |
-| 11:30 | Lunch | 30 min |
-| 12:00 | Storage and databases: why the container filesystem is lost on restart, PersistentVolumeClaim, Jobs. In production the database is a managed service; StatefulSets exist for running clustered databases and are out of scope | Talk, 20 min |
-| 12:20 | Helm: what a chart is, templates and values, `helm install`, `upgrade`, `rollback`, how one chart serves dev and prod. Point out that Tuesday's `setup/traefik.yaml` is a rendered chart | Talk, 10 min |
-| 12:30 | Lab block. Lab 9, Database: Postgres as a Deployment (1 replica, `strategy: Recreate`) with a PVC, password from a Secret, EF Core migration as a Job, point the app at Postgres, delete the Postgres pod and confirm the data survived. Lab 10, Helm: render the Traefik chart with `helm template` and compare it with `setup/traefik.yaml`, then turn their own manifests into a chart with `values-dev.yaml` and `values-prod.yaml`. Capstone in pairs: deploy app and Postgres to a fresh namespace from their chart, with config, Secret, probes, limits, an HPA and an Ingress at `http://capstone-<pair>.localhost:30081`, done when `capstone/check.sh` passes. Checkpoints: 13:15 Lab 10, 13:45 capstone | Hands-on, 135 min |
-| 14:45 | What they did not cover and where to go next (Gateway API, RBAC, StatefulSets, GitOps, managed clusters). Feedback | 15 min |
+| 09:40 | Lab 7, Limits and HPA: set requests and a 128Mi memory limit, hit `/admin/leak` and see OOMKilled, then `/admin/leak?managed=true` and see the container survive. Create an HPA (min 2, max 6, 50% CPU), start a load pod calling `/work`, watch `kubectl get hpa -w` and `kubectl top pods`, set `stabilizationWindowSeconds: 30` and watch it scale down | Hands-on, 50 min |
+| 10:30 | Break | 15 min |
+| 10:45 | Jobs and CronJobs: a Job runs a pod to completion and retries on failure, `restartPolicy`, `backoffLimit`, `completions` and `parallelism`, `activeDeadlineSeconds`, `ttlSecondsAfterFinished`. A CronJob creates a Job on a schedule: cron syntax in UTC unless `timeZone` is set, `concurrencyPolicy`, `suspend`, `kubectl create job --from=cronjob/...` | Talk, 15 min |
+| 11:00 | Lab 8, Jobs and CronJobs: generate a Job with a dry run and read its log, a Job that fails and stops after `backoffLimit: 2` with `BackoffLimitExceeded`, 6 completions with `parallelism: 2`, a CronJob every minute, a run by hand, then `suspend: true`. Uses only busybox, so it needs nothing from earlier labs | Hands-on, 50 min |
+| 11:50 | Lunch | 30 min |
+| 12:20 | Volumes and databases: why the container filesystem is lost on restart, PersistentVolumeClaim and StorageClass. In production the database is a managed service; StatefulSets exist for running clustered databases and are out of scope | Talk, 20 min |
+| 12:40 | Lab 9, Database: Postgres as a Deployment (1 replica, `strategy: Recreate`) with a PVC, password from a Secret, EF Core migration as a Job, point the app at Postgres, delete the Postgres pod and confirm the data survived | Hands-on, 60 min |
+| 13:40 | Break | 10 min |
+| 13:50 | Start with the "Debugging, always in this order" slide: get, describe, logs, fix. Then Lab 10, Debugging: five broken manifests (wrong image tag, Service selector mismatch, wrong port, missing Secret key, `v3-broken` CrashLoopBackOff) fixed using only `get`, `describe`, `logs` and events, plus two extras (readiness probe on the wrong path, a CPU request no node can satisfy). Five minutes of debrief at the end: one person per scenario explains symptom and cause | Hands-on, 50 min |
+| 14:40 | What they did not cover and where to go next (Helm, Gateway API, RBAC, StatefulSets, GitOps, managed clusters). Feedback | 20 min |
 
-Lunch moves 25 minutes earlier than before, because the morning block holds only two labs. The wrap-up is 5 minutes shorter to give the afternoon block the full 135 minutes it needs.
+On 2026-10-13 Helm and the capstone were dropped and the day was reordered: each talk is followed straight away by its lab, Jobs and CronJobs come before the database because Lab 9 runs its migration as a Job, and debugging moved to the end of the day, where it can draw on everything from all three days.
 
 ## Repo layout
 
@@ -160,9 +164,8 @@ k8s-training/
   SETUP.md      participant setup guide (copy of participant-setup.md)
   setup/        kind.yaml, preflight.sh, create-cluster.sh, metrics-server.yaml, traefik.yaml (rendered by render-traefik.sh from traefik-values.yaml)
   app/          ASP.NET Core training app + Dockerfile + README with all endpoints
-  labs/NN-.../  README.md per lab; labs/08-debugging has setup.sh, cleanup.sh and broken/1..7.yaml
-  solutions/    end state of each lab; 10-helm/web is the full chart; 08-debugging explains each fault
-  capstone/     README.md and check.sh (15 checks, run as check.sh <namespace> <host>)
+  labs/NN-.../  README.md per lab; labs/10-debugging has setup.sh, cleanup.sh and broken/1..7.yaml
+  solutions/    end state of each lab; 10-debugging explains each fault
 ```
 
 Every lab ends with a `check yourself` block of commands with expected output, so participants can confirm they are done without asking. `solutions/` matters more than it looks: a participant who falls behind on Lab 2 should be able to `kubectl apply -f solutions/02-deployments/` and keep up.

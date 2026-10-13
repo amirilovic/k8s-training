@@ -2,7 +2,7 @@
 
 Three days, about a quarter talk and three quarters hands-on. Slides for each day are in [slides/](slides/index.html).
 
-Talks come first, then a lab block where you work through the labs at your own pace. Monday has one block, Tuesday and Wednesday have two, one before and one after the break or lunch. The times in a block are the latest start for each lab. If you are still on the previous lab by then, apply its solution from `solutions/` and move on. On Wednesday morning, take the break inside the block whenever you want.
+Talks come first, then a lab block where you work through the labs at your own pace. Monday has one block and Tuesday two, one before and one after the break. On Wednesday each talk is followed straight away by its lab, and the day ends with a debugging lab. The times in a block are the latest start for each lab. If you are still on the previous lab by then, apply its solution from `solutions/` and move on.
 
 ## Monday 12 October, 09:00 to 13:00
 
@@ -49,16 +49,15 @@ Scale, state and shipping.
 | 09:00 | Recap, install metrics-server |  |
 | 09:10 | Requests and limits | talk |
 | 09:25 | Autoscaling | talk |
-| 09:40 | Lab block |  |
 | 09:40 | [Lab 7: Limits and HPA](labs/07-limits-hpa/README.md) | lab |
-| 10:30 | [Lab 8: Debugging](labs/08-debugging/README.md) | lab |
-| 11:30 | Lunch |  |
-| 12:00 | Storage and databases | talk |
-| 12:20 | Helm | talk |
-| 12:30 | Lab block |  |
-| 12:30 | [Lab 9: Postgres and a migration Job](labs/09-database/README.md) | lab |
-| 13:15 | [Lab 10: Helm](labs/10-helm/README.md) | lab |
-| 13:45 | [Capstone in pairs](capstone/README.md) | lab |
-| 14:45 | What next, feedback |  |
+| 10:30 | Break |  |
+| 10:45 | Jobs and CronJobs | talk |
+| 11:00 | [Lab 8: Jobs and CronJobs](labs/08-jobs/README.md) | lab |
+| 11:50 | Lunch |  |
+| 12:20 | Volumes and databases | talk |
+| 12:40 | [Lab 9: Postgres and a migration Job](labs/09-database/README.md) | lab |
+| 13:40 | Break |  |
+| 13:50 | [Lab 10: Debugging](labs/10-debugging/README.md) | lab |
+| 14:40 | What next, feedback |  |
 
 Before Monday, complete [SETUP.md](SETUP.md) and send the trainer the output of `setup/preflight.sh`.
