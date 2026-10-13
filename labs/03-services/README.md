@@ -25,10 +25,10 @@ Note the pod IPs. They change whenever a pod is replaced, so nothing should depe
 ### 2. Generate a ClusterIP Service
 
 ```bash
-kubectl expose deployment web --port=80 --target-port=8080 --dry-run=client -o yaml
+kubectl expose deployment web --port=80 --target-port=8080 --dry-run=client -o yaml > service.yaml
 ```
 
-Save a cleaned-up version as `service.yaml`:
+Take a look at `service.yaml`:
 
 ```yaml
 apiVersion: v1

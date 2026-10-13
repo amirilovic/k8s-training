@@ -149,6 +149,24 @@ kubectl delete pod web-848b…-cg4bh
   <aside class="notes"><ul><li>The connection point matters for .NET: HttpClient pools connections, so one client instance can stick to one pod for a long time. SocketsHttpHandler.PooledConnectionLifetime helps spread load.</li></ul></aside>
 </section>
 
+<section class="slide" data-time="09:15" data-kind="talk">
+  <h2>No proxy: the node rewrites the address</h2>
+  <div class="diagram">
+    <div class="box">calling pod<small>web.training → 10.96.198.9:80</small></div>
+    <div class="arrow">→</div>
+    <div class="box accent">iptables on its node<small>10.96.198.9:80 → 10.244.2.4:8080</small></div>
+    <div class="arrow">→</div>
+    <div class="box ok">web pod<small>10.244.2.4:8080, any node</small></div>
+  </div>
+  <ul class="points">
+    <li>The ClusterIP belongs to no machine. <code>kube-proxy</code> on every node writes iptables rules that recognise it.</li>
+    <li>On the caller's node, the rules pick a ready pod at random and rewrite the destination to its IP. The kernel keeps that choice for the whole connection.</li>
+    <li>Then it is ordinary routing: to a pod on the same node, or to the node that owns that pod's IP range.</li>
+    <li>Replies are rewritten back, so the caller only ever sees the ClusterIP.</li>
+  </ul>
+  <aside class="notes"><ul><li>Show the rules live: docker exec training-worker iptables-save -t nat | grep training/web. Each pod gets a line with "statistic --mode random --probability", then a DNAT line with its IP.</li><li>docker exec training-worker ip route shows one route per local pod and one per other node's pod range (10.244.x.0/24 via that node's IP).</li><li>This is why a Service balances connections, not requests: the random pick happens once, when the connection opens.</li><li>Other kube-proxy modes (IPVS, nftables) and eBPF-based CNIs like Cilium do the same job with a different kernel mechanism.</li></ul></aside>
+</section>
+
 <section class="slide section" data-time="09:35" data-kind="talk">
   <div class="eyebrow">10 minutes · talk</div>
   <h2>Ingress</h2>
