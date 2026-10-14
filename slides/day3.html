@@ -362,6 +362,34 @@ spec:
 </section>
 
 <section class="slide" data-time="12:20" data-kind="talk">
+  <h2>Access modes</h2>
+  <table>
+    <tr><th>Mode</th><th>Who can mount it</th><th>Typical storage</th></tr>
+    <tr><td><code>ReadWriteOnce</code> (RWO)</td><td>read-write on <strong>one node</strong>, any pods on it</td><td>AWS EBS, Azure Disk, kind</td></tr>
+    <tr><td><code>ReadWriteOncePod</code></td><td>read-write by <strong>one pod</strong> only</td><td>CSI drivers that support it</td></tr>
+    <tr><td><code>ReadOnlyMany</code> (ROX)</td><td>read-only on many nodes</td><td>NFS, Azure Files, EFS</td></tr>
+    <tr><td><code>ReadWriteMany</code> (RWX)</td><td>read-write on many nodes</td><td>NFS, Azure Files, EFS</td></tr>
+  </table>
+  <ul class="points">
+    <li>The storage decides which modes work. Ask for RWX on a disk-backed StorageClass and the claim stays <code>Pending</code>.</li>
+    <li>RWO for databases, RWX for files shared by many pods, such as uploads.</li>
+  </ul>
+  <aside class="notes"><ul><li>RWO is per node, not per pod: a second pod on another node gets stuck in ContainerCreating with a Multi-Attach error. That is one reason Lab 9 uses strategy: Recreate.</li><li>ReadWriteOncePod needs Kubernetes 1.29 or later and a CSI driver that supports it.</li><li>RWX is network storage: slower than a local disk and wrong for a database's data files.</li><li>Lab 9 uses ReadWriteOnce, the only mode kind's local-path StorageClass supports.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="12:20" data-kind="talk">
+  <h2>Three more volume settings</h2>
+  <table>
+    <tr><th>Setting</th><th>Set on</th><th>Values</th></tr>
+    <tr><td><code>volumeMode</code></td><td>PVC</td><td><code>Filesystem</code> (default): a formatted folder at <code>mountPath</code>. <code>Block</code>: a raw device, for software that manages disks itself.</td></tr>
+    <tr><td><code>reclaimPolicy</code></td><td>StorageClass</td><td><code>Delete</code> (default): deleting the PVC deletes the disk and the data. <code>Retain</code>: the disk stays for manual recovery.</td></tr>
+    <tr><td><code>volumeBindingMode</code></td><td>StorageClass</td><td><code>Immediate</code>: the disk is created as soon as the PVC exists. <code>WaitForFirstConsumer</code>: it waits for a pod, so the disk lands on that pod's node or zone.</td></tr>
+  </table>
+  <p class="small">kind uses <code>Delete</code> and <code>WaitForFirstConsumer</code>. That is why Lab 9's claim stays <code>Pending</code> until Postgres starts.</p>
+  <aside class="notes"><ul><li>Check it live: kubectl get storageclass standard -o yaml shows provisioner rancher.io/local-path, reclaimPolicy Delete, volumeBindingMode WaitForFirstConsumer.</li><li>Deleting a pod or a Deployment never touches the disk. Only deleting the PVC does, and with Delete the data is gone.</li><li>Production StorageClasses for important data often use Retain. An existing PV can be switched before risky work: kubectl patch pv &lt;name&gt; -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'.</li><li>With Immediate, a disk can be created in one zone while the pod needs another, and the pod stays Pending. That is why most cloud StorageClasses use WaitForFirstConsumer.</li><li>On kind the disk is a folder on one node, so Postgres can only run on that node from then on.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="12:20" data-kind="talk">
   <h2>Databases in Kubernetes</h2>
   <div class="cols">
     <div class="stack">
@@ -424,6 +452,26 @@ kubectl get events --sort-by=.lastTimestamp</pre>
       <li>Say the symptom out loud before you fix it. That is the skill.</li>
     </ul>
   </div>
+</section>
+
+<section class="slide" data-time="13:50" data-kind="lab">
+  <h2>Editing a live object with <code>kubectl edit</code></h2>
+  <div class="cols wide-left">
+    <div class="stack">
+      <pre class="term"><span class="c"># once, so it opens VS Code instead of vi</span>
+echo 'export KUBE_EDITOR="code --wait"' >> ~/.bashrc
+source ~/.bashrc
+
+kubectl edit deployment web</pre>
+      <p class="small"><code>--wait</code> makes kubectl wait until you close the tab. Without it, kubectl sees no change and discards your edit.</p>
+    </div>
+    <ul class="points">
+      <li>Opens the object's YAML, as stored in the cluster. Save and close the tab, and kubectl applies it.</li>
+      <li>Invalid YAML reopens with the error at the top.</li>
+      <li>Good for a quick fix while debugging. The next <code>apply</code> of your file overwrites it, so fix the file too.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>kubectl looks for KUBE_EDITOR, then EDITOR, then falls back to vi. Setting EDITOR also works but changes the editor for git too.</li><li>In WSL, code opens the file in the Windows VS Code window through the WSL extension.</li><li>Lab 10 step 3 suggests kubectl edit as one way to fix each broken Deployment or Service.</li><li>Stuck in vi? Esc, then :q! and Enter, quits without saving.</li></ul></aside>
 </section>
 
 <section class="slide lab" data-time="13:50" data-kind="lab">
