@@ -164,6 +164,9 @@ button.label.selected, button.label:hover { color: var(--accent); }
 .pill.bad { color: var(--bad); }
 .pill.warn { color: var(--warn); }
 
+/* Numbered worked example under a formula */
+ol.steps { margin: 0; padding-left: 1.4em; font-size: 26px; line-height: 1.4; display: grid; gap: 8px; }
+
 /* Repo link with QR code */
 .repo { display: flex; gap: 24px; align-items: center; }
 .repo img { flex: none; border-radius: 6px; }

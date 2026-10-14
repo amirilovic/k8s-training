@@ -60,4 +60,6 @@ Scale, state and shipping.
 | 13:50 | [Lab 10: Debugging](labs/10-debugging/README.md) | lab |
 | 14:40 | What next, feedback |  |
 
+Bonus, not on the schedule: [Lab 11: one app, two environments with Kustomize](labs/11-kustomize/README.md), for when you finish early or after the training.
+
 Before Monday, complete [SETUP.md](SETUP.md) and send the trainer the output of `setup/preflight.sh`.

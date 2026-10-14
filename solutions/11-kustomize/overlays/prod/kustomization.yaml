@@ -1,0 +1,15 @@
+resources:
+  - ../../base
+  - namespace.yaml
+namespace: web-prod
+replicas:
+  - name: web
+    count: 3
+images:
+  - name: ghcr.io/amirilovic/k8s-training-app
+    newTag: v2
+configMapGenerator:
+  - name: web-settings
+    behavior: merge
+    literals:
+      - Greeting__Text=Hello from prod

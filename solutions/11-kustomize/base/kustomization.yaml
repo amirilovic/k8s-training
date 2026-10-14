@@ -1,0 +1,7 @@
+resources:
+  - deployment.yaml
+  - service.yaml
+configMapGenerator:
+  - name: web-settings
+    literals:
+      - Greeting__Text=Hello from the base

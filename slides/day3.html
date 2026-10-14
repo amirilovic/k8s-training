@@ -66,6 +66,7 @@ kubectl top nodes</pre>
 
 <section class="slide" data-time="09:10" data-kind="talk">
   <h2>Requests and limits</h2>
+  <p class="lead">Requests tell Kubernetes how much CPU and memory a container needs, so it lands on a node with room. Limits are the most it may use.</p>
   <div class="cols">
     <pre>resources:
   requests:          <span class="c"># reserved, used for scheduling</span>
@@ -121,6 +122,7 @@ kubectl top nodes</pre>
 
 <section class="slide" data-time="09:25" data-kind="talk">
   <h2>The HorizontalPodAutoscaler</h2>
+  <p class="lead">A way to set how many replicas a Deployment runs based on the application's load.</p>
   <div class="diagram">
     <div class="box">kubelet<small>measures pods</small></div>
     <div class="arrow">→</div>
@@ -131,27 +133,10 @@ kubectl top nodes</pre>
     <div class="box">Deployment<small>replicas: 2 … 6</small></div>
   </div>
   <ul class="points">
+    <li>Every 15 seconds the HPA reads the pods' CPU use from metrics-server and works out how many replicas are needed.</li>
     <li>The HPA only changes one number: the Deployment's <code>replicas</code>.</li>
     <li>It adds pods, not nodes. When nodes are full, new pods stay Pending. The cluster autoscaler adds nodes, and that is a platform job.</li>
   </ul>
-</section>
-
-<section class="slide" data-time="09:25" data-kind="talk">
-  <h2>How it decides</h2>
-  <div class="cols">
-    <div class="stack">
-      <pre>utilization = CPU used ÷ CPU <span class="k">request</span>
-
-desired = ceil( current × utilization ÷ target )</pre>
-      <p>3 pods at 150% with a 50% target: 3 × 150 ÷ 50 = <strong>9</strong>, capped at <code>maxReplicas: 6</code>.</p>
-    </div>
-    <ul class="points">
-      <li>Utilization is relative to the <strong>request</strong>, not the limit. No CPU request, no autoscaling.</li>
-      <li>Scaling up is fast. Scaling down waits 5 minutes by default, so a short dip does not remove pods.</li>
-      <li>In the lab it went from 2 to 6 pods in about 30 seconds.</li>
-    </ul>
-  </div>
-  <aside class="notes"><ul><li>Observed on kind: CPU went up to 467% of the request before the new pods came up, then scaled back to 2 about a minute after the load stopped with a 30 s window.</li></ul></aside>
 </section>
 
 <section class="slide" data-time="09:25" data-kind="talk">
@@ -173,14 +158,42 @@ spec:
       resource:
         name: cpu
         target: { type: Utilization, averageUtilization: 50 }
+    - type: Resource
+      resource:
+        name: memory
+        target: { type: Utilization, averageUtilization: 80 }
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 30</pre>
     <ul class="points">
-      <li>Remove <code>replicas</code> from the Deployment once an HPA owns it, or every <code>apply</code> resets the count.</li>
-      <li>The 30-second window is for the lab, so you see it scale down within the lab.</li>
+      <li><code>averageUtilization: 50</code> is the target percentage, averaged over all the Deployment's pods. One pod at 90% and one at 10% average to 50%, which counts as on target.</li>
+      <li><code>stabilizationWindowSeconds</code>: before removing pods, the HPA takes its highest recommendation from this window, so a short dip removes nothing.</li>
+      <li>Default 300&nbsp;s down, 0&nbsp;s up. The lab uses 30&nbsp;s.</li>
     </ul>
   </div>
+  <aside class="notes"><ul><li>With two metrics the HPA works out a replica count for each and uses the higher one. Memory needs a memory request, and it is a weak signal for .NET: the GC keeps memory after a burst, so memory-based scaling adds pods but rarely removes them. Use it as a safety net with a high target.</li><li>Remove replicas from the Deployment once an HPA owns it, or every kubectl apply resets the count until the HPA corrects it. Lab 7 has this as a "Finished early?" extra.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="09:25" data-kind="talk">
+  <h2>How it decides</h2>
+  <div class="cols wide-left">
+    <div class="stack">
+      <pre>utilization = CPU used ÷ CPU <span class="k">request</span>
+
+desired = ceil( current × utilization ÷ target )</pre>
+      <ol class="steps">
+        <li>Each pod requests 100m and uses 150m: utilization 150%.</li>
+        <li>3 pods carry 450m in total. At the 50% target a pod should use 50m.</li>
+        <li>450m ÷ 50m = <strong>9</strong> pods, the same as 3 × 150 ÷ 50. <code>ceil</code> rounds up, then <code>maxReplicas: 6</code> caps it.</li>
+        <li>15 s later: 450m over 6 pods is 75%, still above 50%, so it stays at 6.</li>
+      </ol>
+    </div>
+    <ul class="points">
+      <li>Utilization is relative to the <strong>request</strong>, not the limit. No CPU request, no autoscaling.</li>
+      <li>In the lab it went from 2 to 6 pods in about 30 seconds.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>Observed on kind: CPU went up to 467% of the request before the new pods came up, then scaled back to 2 about a minute after the load stopped with a 30 s window.</li></ul></aside>
 </section>
 
 <section class="slide lab" data-time="09:40" data-kind="lab">
@@ -363,7 +376,7 @@ spec:
   replicas: 1
   strategy:
     type: Recreate</pre>
-      <p class="small">One replica and <code>Recreate</code>, so two Postgres pods never share the data folder.</p>
+      <p class="small"><code>Recreate</code> stops the old pod before it starts the new one. The default rolling update does it the other way round, so for a moment two Postgres pods would write to the same data folder. The cost is a few seconds of downtime on every change.</p>
     </div>
   </div>
 </section>
@@ -437,12 +450,107 @@ kubectl get events --sort-by=.lastTimestamp</pre>
     <tr><th>Topic</th><th>Where you will meet it</th></tr>
     <tr><td>Helm</td><td>packaging many manifests as one chart, with settings per environment</td></tr>
     <tr><td>GitOps (Argo CD, Flux)</td><td>how changes reach real clusters: a merge to git, not <code>kubectl apply</code></td></tr>
-    <tr><td>RBAC</td><td>who may read Secrets or deploy to which namespace</td></tr>
     <tr><td>Gateway API</td><td>the successor of Ingress: new routing setups, TLS, traffic splits</td></tr>
     <tr><td>StatefulSets</td><td>databases and brokers run inside the cluster</td></tr>
     <tr><td>Managed clusters (EKS, AKS)</td><td>node groups, cloud load balancers, IAM for pods</td></tr>
     <tr><td>Observability</td><td>logs, metrics and traces collected from every pod</td></tr>
   </table>
+</section>
+
+<section class="slide" data-time="14:40">
+  <h2>Kustomize: one set of manifests, several environments</h2>
+  <div class="cols">
+    <div class="stack">
+      <pre>k8s/
+  base/
+    deployment.yaml
+    service.yaml
+    kustomization.yaml
+  overlays/
+    dev/kustomization.yaml
+    prod/kustomization.yaml</pre>
+      <pre class="term">kubectl kustomize k8s/overlays/prod
+kubectl apply -k k8s/overlays/prod</pre>
+    </div>
+    <div class="stack">
+      <pre><span class="c"># overlays/prod/kustomization.yaml</span>
+resources:
+  - ../../base
+namespace: web-prod
+replicas:
+  - name: web
+    count: 5
+images:
+  - name: ghcr.io/amirilovic/k8s-training-app
+    newTag: v2</pre>
+      <p class="small">Built into <code>kubectl</code>, no new tool. Plain YAML plus small changes per environment, no templates. Try it in bonus Lab 11: <code>labs/11-kustomize</code>.</p>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>kubectl kustomize prints the finished YAML without applying it, like a dry run. Tested with the Lab 2 Deployment as the base: the prod overlay gives namespace web-prod, 5 replicas and image v2.</li><li>Rule of thumb: Helm to install other people's software (Traefik, metrics-server), Kustomize for your own app's environments. Argo CD and Flux understand both.</li><li>Overlays can also patch any field, generate ConfigMaps from files, and add labels to everything.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="14:40">
+  <h2>RBAC: who may do what</h2>
+  <div class="cols wide-left">
+    <pre><span class="k">kind</span>: Role                 <span class="c"># what: verbs on resources</span>
+<span class="k">metadata</span>:
+  name: pod-reader
+  namespace: payments
+<span class="k">rules</span>:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+---
+<span class="k">kind</span>: RoleBinding          <span class="c"># who gets it</span>
+<span class="k">metadata</span>:
+  name: devs-read-pods
+  namespace: payments
+<span class="k">subjects</span>:
+  - kind: Group
+    name: payments-devs
+<span class="k">roleRef</span>:
+  kind: Role
+  name: pod-reader</pre>
+    <div class="stack">
+      <ul class="points">
+        <li>A Role lists what may be done in one namespace. A RoleBinding gives it to users, groups or a pod's ServiceAccount.</li>
+        <li>ClusterRole and ClusterRoleBinding do the same for the whole cluster.</li>
+      </ul>
+      <pre class="term">kubectl auth can-i list pods -n payments
+kubectl auth can-i --list -n payments</pre>
+    </div>
+  </div>
+  <aside class="notes"><ul><li>The error they will meet: Error from server (Forbidden): pods is forbidden: User "anna@example.com" cannot list resource "pods" in API group "" in the namespace "training". Real output from kind with --as=anna@example.com.</li><li>Our kind cluster gives everyone full admin, so nothing in the labs was ever forbidden. Real clusters are not like that.</li><li>Pods have identities too: each runs as a ServiceAccount, and RBAC decides what the app may do if it calls the Kubernetes API.</li><li>apiVersion rbac.authorization.k8s.io/v1 and the apiGroup lines are left out of the slide to save space.</li></ul></aside>
+</section>
+
+<section class="slide" data-time="14:40">
+  <h2>How a user gets a role</h2>
+  <div class="diagram">
+    <div class="box">you log in<small>certificate, Entra ID, AWS IAM</small></div>
+    <div class="arrow">→</div>
+    <div class="box accent">API server<small>user + groups</small></div>
+    <div class="arrow">→</div>
+    <div class="box">RoleBinding<small>names the user or group</small></div>
+    <div class="arrow">→</div>
+    <div class="box ok">Role<small>allowed verbs</small></div>
+  </div>
+  <div class="cols">
+    <pre class="term">kubectl auth whoami
+<span class="c">Username   kubernetes-admin
+Groups     [kubeadm:cluster-admins
+            system:authenticated]</span>
+
+kubectl get clusterrolebinding \
+  kubeadm:cluster-admins -o wide
+<span class="c">ROLE                        GROUPS
+ClusterRole/cluster-admin   kubeadm:cluster-admins</span></pre>
+    <ul class="points">
+      <li>Kubernetes stores no users. Your name and groups come from how you log in.</li>
+      <li>Bind roles to groups. Joining a team in the identity provider then gives the access.</li>
+      <li>Pods log in too, as their ServiceAccount, and get roles the same way.</li>
+    </ul>
+  </div>
+  <aside class="notes"><ul><li>The output is from our kind cluster. The kubeconfig holds a client certificate with CN=kubernetes-admin (the user) and O=kubeadm:cluster-admins (the group). A ClusterRoleBinding gives that group the cluster-admin ClusterRole, which is why nothing was ever forbidden in the labs.</li><li>Ways to log in: a client certificate (kind, kubeadm), an OIDC token from the company's identity provider such as Entra ID or Okta, which carries a groups claim, or the cloud's IAM. On EKS, access entries map an IAM role to Kubernetes groups; on AKS, Entra ID groups are used directly.</li><li>The group name in a RoleBinding must match exactly what the identity provider sends.</li><li>A pod's identity is system:serviceaccount:&lt;namespace&gt;:&lt;name&gt;. A RoleBinding can name it as kind: ServiceAccount.</li></ul></aside>
 </section>
 
 <section class="slide" data-time="14:40">

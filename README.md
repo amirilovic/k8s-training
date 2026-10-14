@@ -30,6 +30,7 @@ Write your own YAML files in `work/`. Git ignores that folder.
 | Wednesday | [Lab 8](labs/08-jobs/README.md) | Jobs and CronJobs |
 | Wednesday | [Lab 9](labs/09-database/README.md) | Postgres, PersistentVolumeClaim, migration Job |
 | Wednesday | [Lab 10](labs/10-debugging/README.md) | Debugging broken deployments |
+| Bonus | [Lab 11](labs/11-kustomize/README.md) | One app, two environments with Kustomize |
 
 ## If you fall behind
 

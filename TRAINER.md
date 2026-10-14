@@ -151,7 +151,7 @@ Goal: the app has resource limits and scales under load, participants can debug 
 | 12:40 | Lab 9, Database: Postgres as a Deployment (1 replica, `strategy: Recreate`) with a PVC, password from a Secret, EF Core migration as a Job, point the app at Postgres, delete the Postgres pod and confirm the data survived | Hands-on, 60 min |
 | 13:40 | Break | 10 min |
 | 13:50 | Start with the "Debugging, always in this order" slide: get, describe, logs, fix. Then Lab 10, Debugging: five broken manifests (wrong image tag, Service selector mismatch, wrong port, missing Secret key, `v3-broken` CrashLoopBackOff) fixed using only `get`, `describe`, `logs` and events, plus two extras (readiness probe on the wrong path, a CPU request no node can satisfy). Five minutes of debrief at the end: one person per scenario explains symptom and cause | Hands-on, 50 min |
-| 14:40 | What they did not cover and where to go next (Helm, Gateway API, RBAC, StatefulSets, GitOps, managed clusters). Feedback | 20 min |
+| 14:40 | What they did not cover and where to go next (Helm, Gateway API, StatefulSets, GitOps, managed clusters), a slide on Kustomize, and two on RBAC (roles and bindings, then how a user gets a role). Bonus Lab 11 (Kustomize, dev and prod overlays, tested on kind) is for fast participants or after the training. Feedback | 20 min |
 
 On 2026-10-13 Helm and the capstone were dropped and the day was reordered: each talk is followed straight away by its lab, Jobs and CronJobs come before the database because Lab 9 runs its migration as a Job, and debugging moved to the end of the day, where it can draw on everything from all three days.
 
